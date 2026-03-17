@@ -1,0 +1,172 @@
+import { useState, useEffect } from "react";
+import { Download } from "lucide-react";
+import { motion } from "motion/react";
+import { reportService } from "../../services/reportService";
+import { formatDate } from "../../utils/formatters";
+import { statusColor, statusLabel } from "../../utils/constants";
+import type { Stats, StaffReport } from "../../types";
+
+interface ReportsPageProps {
+  stats: Stats;
+}
+
+export function ReportsPage({ stats }: ReportsPageProps) {
+  const [staffReport, setStaffReport] = useState<StaffReport[]>([]);
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
+  const [dateReport, setDateReport] = useState<Record<string, unknown>[]>([]);
+
+  useEffect(() => { loadStaffReport(); }, []);
+
+  const loadStaffReport = async () => {
+    const data = await reportService.getStaffReport();
+    setStaffReport(data);
+  };
+
+  const loadDateReport = async () => {
+    if (!dateRange.start || !dateRange.end) return;
+    const data = await reportService.getDateRangeReport(dateRange.start, dateRange.end);
+    setDateReport(data);
+  };
+
+  const totalTasks = stats.total || 1;
+  const bars = [
+    { label: "เสร็จสิ้น", value: stats.completed, color: "bg-emerald-500", pct: Math.round((stats.completed / totalTasks) * 100) },
+    { label: "กำลังดำเนินการ", value: stats.inProgress, color: "bg-amber-500", pct: Math.round((stats.inProgress / totalTasks) * 100) },
+    { label: "รอดำเนินการ", value: stats.pending, color: "bg-gray-400", pct: Math.round((stats.pending / totalTasks) * 100) },
+    { label: "ยกเลิก", value: stats.cancelled, color: "bg-rose-500", pct: Math.round((stats.cancelled / totalTasks) * 100) },
+  ];
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-8">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-serif font-bold">สรุปรายงาน</h3>
+        <button onClick={() => window.open("/api/reports/export-csv", "_blank")}
+          className="flex items-center gap-2 bg-[#5A5A40] text-white px-4 py-2 rounded-xl text-sm font-medium shadow-md hover:bg-[#4A4A30] transition-colors">
+          <Download size={18} /> ส่งออก CSV
+        </button>
+      </div>
+
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-black/5">
+        <h4 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-6">ภาพรวมสถานะงาน</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="space-y-4">
+            {bars.map((b) => (
+              <div key={b.label}>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="font-medium text-gray-700">{b.label}</span>
+                  <span className="text-gray-500">{b.value} ({b.pct}%)</span>
+                </div>
+                <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${b.color} transition-all duration-500`} style={{ width: `${b.pct}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-6xl font-serif font-bold text-[#5A5A40]">{stats.total}</p>
+              <p className="text-sm text-gray-400 mt-2">งานทั้งหมดในระบบ</p>
+              <p className="text-2xl font-serif font-bold text-emerald-500 mt-4">
+                {stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%
+              </p>
+              <p className="text-xs text-gray-400">อัตราความสำเร็จ</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-black/5">
+        <h4 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-6">รายงานตามเจ้าหน้าที่</h4>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="px-4 py-3 text-xs font-bold uppercase text-gray-500">เจ้าหน้าที่</th>
+                <th className="px-4 py-3 text-xs font-bold uppercase text-gray-500">หน่วยงาน</th>
+                <th className="px-4 py-3 text-xs font-bold uppercase text-gray-500 text-center">ทั้งหมด</th>
+                <th className="px-4 py-3 text-xs font-bold uppercase text-gray-500 text-center">เสร็จสิ้น</th>
+                <th className="px-4 py-3 text-xs font-bold uppercase text-gray-500 text-center">กำลังดำเนินการ</th>
+                <th className="px-4 py-3 text-xs font-bold uppercase text-gray-500 text-center">รอดำเนินการ</th>
+                <th className="px-4 py-3 text-xs font-bold uppercase text-gray-500">ภาพรวม</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {staffReport.map((s) => {
+                const pct = s.total_tasks > 0 ? Math.round((s.completed / s.total_tasks) * 100) : 0;
+                return (
+                  <tr key={s.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full bg-[#F5F5F0] flex items-center justify-center text-[#5A5A40] font-bold text-xs">
+                          {s.first_name[0]}{s.last_name[0]}
+                        </div>
+                        <span className="text-sm font-medium">{s.first_name} {s.last_name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-500">{s.department_name || "-"}</td>
+                    <td className="px-4 py-3 text-sm text-center font-bold">{s.total_tasks}</td>
+                    <td className="px-4 py-3 text-sm text-center text-emerald-600 font-bold">{s.completed}</td>
+                    <td className="px-4 py-3 text-sm text-center text-amber-600 font-bold">{s.in_progress}</td>
+                    <td className="px-4 py-3 text-sm text-center text-gray-500 font-bold">{s.pending}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-xs text-gray-500">{pct}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {staffReport.length === 0 && <p className="text-center text-gray-400 py-8">ไม่มีข้อมูล</p>}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-black/5">
+        <h4 className="text-sm font-bold uppercase tracking-wider text-gray-400 mb-4">รายงานตามช่วงเวลา</h4>
+        <div className="flex gap-4 items-end mb-6">
+          <div>
+            <label className="block text-xs font-bold text-gray-400 mb-1">จากวันที่</label>
+            <input type="date" className="px-4 py-2 bg-gray-50 rounded-xl text-sm border-none focus:ring-2 focus:ring-[#5A5A40] outline-none"
+              value={dateRange.start} onChange={(e) => setDateRange((p) => ({ ...p, start: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-400 mb-1">ถึงวันที่</label>
+            <input type="date" className="px-4 py-2 bg-gray-50 rounded-xl text-sm border-none focus:ring-2 focus:ring-[#5A5A40] outline-none"
+              value={dateRange.end} onChange={(e) => setDateRange((p) => ({ ...p, end: e.target.value }))} />
+          </div>
+          <button onClick={loadDateReport} className="px-6 py-2 bg-[#5A5A40] text-white rounded-xl text-sm font-medium hover:bg-[#4A4A30] transition-colors">ค้นหา</button>
+        </div>
+        {dateReport.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="px-4 py-3 text-xs font-bold uppercase text-gray-500">วันที่</th>
+                  <th className="px-4 py-3 text-xs font-bold uppercase text-gray-500">สถานะ</th>
+                  <th className="px-4 py-3 text-xs font-bold uppercase text-gray-500 text-center">จำนวน</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {dateReport.map((r, i) => (
+                  <tr key={i} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-sm">{formatDate(r.due_date as string)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-bold px-2 py-1 rounded ${statusColor[r.status as string]}`}>{statusLabel[r.status as string]}</span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-center font-bold">{r.count as number}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-center text-gray-400 py-8 text-sm">กรุณาเลือกช่วงเวลาแล้วกดค้นหา</p>
+        )}
+      </div>
+    </motion.div>
+  );
+}

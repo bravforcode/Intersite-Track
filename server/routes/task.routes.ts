@@ -1,0 +1,47 @@
+import { Router } from "express";
+import {
+  getTasks, getTask, createTaskHandler, updateTaskHandler,
+  updateStatus, deleteTaskHandler,
+} from "../controllers/task.controller";
+import {
+  getTaskUpdates, addTaskUpdate, getChecklists, saveChecklists, toggleChecklist,
+} from "../controllers/taskUpdate.controller";
+import { requireAuth, requireRole } from "../middleware/auth.middleware";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
+
+const uploadsDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("อนุญาตเฉพาะไฟล์รูปภาพเท่านั้น"));
+  },
+});
+
+const router = Router();
+
+router.get("/", requireAuth, getTasks);
+router.post("/", requireAuth, requireRole("admin"), createTaskHandler);
+router.get("/:id", requireAuth, getTask);
+router.put("/:id", requireAuth, requireRole("admin"), updateTaskHandler);
+router.patch("/:id/status", requireAuth, updateStatus);
+router.delete("/:id", requireAuth, requireRole("admin"), deleteTaskHandler);
+router.get("/:id/updates", requireAuth, getTaskUpdates);
+router.post("/:id/updates", requireAuth, addTaskUpdate);
+router.get("/:id/checklists", requireAuth, getChecklists);
+router.post("/:id/checklists", requireAuth, saveChecklists);
+router.post("/upload", requireAuth, upload.single("image"), (req, res) => {
+  if (!req.file) { res.status(400).json({ error: "ไม่พบไฟล์" }); return; }
+  res.json({ url: `/uploads/${req.file.filename}` });
+});
+
+export default router;
