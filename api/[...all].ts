@@ -22,6 +22,11 @@ function ensureInitialized() {
 }
 
 app.use(async (_req, _res, next) => {
+  if (_req.path.startsWith("/api/auth/")) {
+    next();
+    return;
+  }
+
   try {
     await ensureInitialized();
     next();

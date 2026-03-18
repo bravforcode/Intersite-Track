@@ -33,7 +33,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "เกิดข้อผิดพลาด" }));
-    throw new Error(err.error || "เกิดข้อผิดพลาด");
+    const detail = typeof err.detail === "string" && err.detail ? ` (${err.detail})` : "";
+    throw new Error((err.error || "เกิดข้อผิดพลาด") + detail);
   }
 
   return res.json();

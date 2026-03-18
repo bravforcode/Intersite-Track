@@ -1,6 +1,5 @@
 import { Request, Response, NextFunction } from "express";
 import { supabaseAdmin } from "../config/supabase.js";
-import { query } from "../database/connection.js";
 
 interface UserRow {
   id: number;
@@ -24,25 +23,23 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   const token = authHeader.substring(7);
 
   try {
-    // Verify token with Supabase Auth
     const { data, error } = await supabaseAdmin.auth.getUser(token);
     if (error || !data.user) {
       res.status(401).json({ error: "Token ไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่" });
       return;
     }
 
-    // Look up app user profile by auth_id
-    const result = await query<UserRow>(
-      "SELECT id, username, role, email, auth_id FROM users WHERE auth_id = $1",
-      [data.user.id]
-    );
+    const { data: appUser, error: profileError } = await supabaseAdmin
+      .from("users")
+      .select("id, username, role, email, auth_id")
+      .eq("auth_id", data.user.id)
+      .single<UserRow>();
 
-    if (!result.rows[0]) {
+    if (profileError || !appUser) {
       res.status(401).json({ error: "ไม่พบข้อมูลผู้ใช้ กรุณาติดต่อผู้ดูแลระบบ" });
       return;
     }
 
-    const appUser = result.rows[0];
     req.user = {
       id: appUser.id,
       username: appUser.username,

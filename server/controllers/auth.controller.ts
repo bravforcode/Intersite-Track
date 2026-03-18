@@ -1,6 +1,19 @@
 import { Request, Response, NextFunction } from "express";
-import { findUserById, createUser, findUserByUsername } from "../database/queries/user.queries.js";
 import { supabaseAdmin } from "../config/supabase.js";
+
+async function usernameExists(username: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("id")
+    .eq("username", username)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return Boolean(data);
+}
 
 async function buildUniqueUsername(email: string): Promise<string> {
   const emailPrefix = email.split("@")[0] ?? "user";
@@ -13,7 +26,7 @@ async function buildUniqueUsername(email: string): Promise<string> {
   let candidate = base;
   let suffix = 1;
 
-  while (await findUserByUsername(candidate)) {
+  while (await usernameExists(candidate)) {
     suffix += 1;
     candidate = `${base}${suffix}`;
   }
@@ -40,11 +53,10 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
       return;
     }
 
-    // Create Supabase Auth user (email_confirm: false, will send verification)
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // Skip email verification for internal system
+      email_confirm: true,
     });
 
     if (authError) {
@@ -61,27 +73,38 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
 
     const authId = authData.user.id;
 
-    // Create basic app profile with staff role, rollback Auth user if DB fails
     try {
       const username = await buildUniqueUsername(email);
-      const id = await createUser({
-        username,
-        email,
-        auth_id: authId,
-        first_name: "",
-        last_name: "",
-        role: "staff", // Default role
-        department_id: null,
-        position: null,
-      });
-      res.status(201).json({ id, email });
+      const { data: insertedUser, error: insertError } = await supabaseAdmin
+        .from("users")
+        .insert({
+          username,
+          email,
+          auth_id: authId,
+          first_name: "",
+          last_name: "",
+          role: "staff",
+          department_id: null,
+          position: null,
+        })
+        .select("id, email")
+        .single();
+
+      if (insertError || !insertedUser) {
+        throw insertError ?? new Error("create profile failed");
+      }
+
+      res.status(201).json(insertedUser);
     } catch (dbErr: unknown) {
       await supabaseAdmin.auth.admin.deleteUser(authId).catch(() => {});
       const msg = dbErr instanceof Error ? dbErr.message : "";
-      if (msg.includes("unique") || msg.includes("duplicate")) {
+      if (msg.includes("duplicate") || msg.includes("unique")) {
         res.status(400).json({ error: "อีเมลนี้มีอยู่ในระบบแล้ว" });
       } else {
-        res.status(500).json({ error: "ยังไม่สามารถสร้างบัญชีได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง" });
+        res.status(500).json({
+          error: "ยังไม่สามารถสร้างบัญชีได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง",
+          detail: msg || "create profile failed",
+        });
       }
     }
   } catch (err) {
@@ -92,16 +115,20 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
 /**
  * POST /api/auth/profile
  * Called by frontend after Supabase sign-in to get the app user profile (role, dept, etc.)
- * The middleware has already verified the token and set req.user.id
  */
 export async function getProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = await findUserById(req.user!.id);
-    if (!user) {
+    const { data: profile, error } = await supabaseAdmin
+      .from("users")
+      .select("id, username, email, auth_id, first_name, last_name, role, department_id, position, created_at")
+      .eq("id", req.user!.id)
+      .single();
+
+    if (error || !profile) {
       res.status(404).json({ error: "ไม่พบข้อมูลผู้ใช้" });
       return;
     }
-    const { password: _pw, ...profile } = user;
+
     res.json(profile);
   } catch (err) {
     next(err);
@@ -121,8 +148,13 @@ export async function changePassword(req: Request, res: Response, next: NextFunc
       return;
     }
 
-    const user = await findUserById(Number(req.params.id));
-    if (!user) {
+    const { data: user, error: userError } = await supabaseAdmin
+      .from("users")
+      .select("auth_id")
+      .eq("id", Number(req.params.id))
+      .single();
+
+    if (userError || !user) {
       res.status(404).json({ error: "ไม่พบผู้ใช้" });
       return;
     }
