@@ -303,7 +303,7 @@ Intersite-Track/
 ### 1. Clone repository
 
 ```bash
-git clone https://github.com/bravforcode/Intersite-Track.git
+git clone https://github.com/tawankh/Intersite-Track.git
 cd Intersite-Track
 ```
 
@@ -601,4 +601,4 @@ NODE_ENV=production npm run dev
 
 ## ผู้พัฒนา
 
-พัฒนาโดย [bravforcode](https://github.com/bravforcode)
+พัฒนาโดย [tawankh](https://github.com/tawankh)
