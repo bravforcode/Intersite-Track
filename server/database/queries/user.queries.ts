@@ -1,4 +1,4 @@
-import { query, transaction } from "../connection";
+import { query, transaction } from "../connection.js";
 import pg from "pg";
 
 export interface UserRow {

@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import {
   findAllUsers, findUserById, createUser, updateUser, deleteUser, getUserTasks,
-} from "../database/queries/user.queries";
-import { supabaseAdmin } from "../config/supabase";
+} from "../database/queries/user.queries.js";
+import { supabaseAdmin } from "../config/supabase.js";
 
 /** GET /api/users */
 export async function getUsers(req: Request, res: Response, next: NextFunction): Promise<void> {

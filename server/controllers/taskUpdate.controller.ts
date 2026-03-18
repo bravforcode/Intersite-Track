@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import { query, transaction } from "../database/connection";
-import { createNotification } from "../database/queries/notification.queries";
+import { query, transaction } from "../database/connection.js";
+import { createNotification } from "../database/queries/notification.queries.js";
 
 /** GET /api/tasks/:id/updates */
 export async function getTaskUpdates(req: Request, res: Response, next: NextFunction): Promise<void> {

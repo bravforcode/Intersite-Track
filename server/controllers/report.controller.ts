@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { getStats, getStaffReport, getTasksByDateRange } from "../database/queries/report.queries";
+import { getStats, getStaffReport, getTasksByDateRange } from "../database/queries/report.queries.js";
 
 export async function getStatsHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

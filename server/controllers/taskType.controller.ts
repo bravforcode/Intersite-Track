@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { query } from "../database/connection";
+import { query } from "../database/connection.js";
 
 export async function getTaskTypes(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

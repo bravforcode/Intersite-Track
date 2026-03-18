@@ -1,8 +1,8 @@
 import { Router } from "express";
 import {
   getTaskTypes, createTaskType, updateTaskType, deleteTaskType,
-} from "../controllers/taskType.controller";
-import { requireAuth, requireRole } from "../middleware/auth.middleware";
+} from "../controllers/taskType.controller.js";
+import { requireAuth, requireRole } from "../middleware/auth.middleware.js";
 
 const router = Router();
 

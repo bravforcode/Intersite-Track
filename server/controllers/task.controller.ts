@@ -2,10 +2,10 @@ import { Request, Response, NextFunction } from "express";
 import {
   findAllTasks, findTaskById, createTask, updateTask, deleteTask,
   updateTaskStatus, getTaskAssignments, setTaskAssignments, getCurrentAssignments,
-} from "../database/queries/task.queries";
-import { createNotification } from "../database/queries/notification.queries";
-import { transaction } from "../database/connection";
-import { createAuditLog } from "../utils/auditLogger";
+} from "../database/queries/task.queries.js";
+import { createNotification } from "../database/queries/notification.queries.js";
+import { transaction } from "../database/connection.js";
+import { createAuditLog } from "../utils/auditLogger.js";
 
 const STATUS_THAI: Record<string, string> = {
   pending: "รอดำเนินการ", in_progress: "กำลังดำเนินการ",

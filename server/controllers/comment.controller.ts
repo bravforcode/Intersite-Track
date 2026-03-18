@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { getCommentsByTaskId, createComment } from "../database/queries/comment.queries";
+import { getCommentsByTaskId, createComment } from "../database/queries/comment.queries.js";
 
 export async function getTaskComments(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

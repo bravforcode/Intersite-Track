@@ -7,31 +7,62 @@ export interface LoginCredentials {
   password: string;
 }
 
+function normalizeAuthMessage(message: string, fallback: string): string {
+  const raw = message.trim();
+
+  if (!raw) return fallback;
+  if (raw.includes("Email not confirmed")) return "อีเมลนี้ยังไม่ได้ยืนยัน";
+  if (raw.includes("Invalid login credentials")) return "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
+  if (raw.includes("already registered")) return "อีเมลนี้มีอยู่ในระบบแล้ว";
+  if (raw.includes("Failed to fetch") || raw.includes("Load failed") || raw.includes("NetworkError")) {
+    return "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง";
+  }
+  if (raw.includes("ไม่พบข้อมูลผู้ใช้")) {
+    return "บัญชีนี้ยังไม่พร้อมใช้งาน กรุณาลองเข้าสู่ระบบอีกครั้ง";
+  }
+
+  return raw;
+}
+
+function getAuthErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error) {
+    return normalizeAuthMessage(error.message, fallback);
+  }
+  return fallback;
+}
+
+async function fetchAndStoreProfile(profileLoadErrorMessage: string): Promise<User> {
+  try {
+    const profile = await api.post<User>("/api/auth/profile", {});
+    const { data } = await supabase.auth.getSession();
+    const user = { ...profile, token: data.session?.access_token ?? "" };
+    localStorage.setItem("user", JSON.stringify(user));
+    return user;
+  } catch (error) {
+    throw new Error(getAuthErrorMessage(error, profileLoadErrorMessage));
+  }
+}
+
 export const authService = {
   /**
    * Sign up: create Supabase Auth account + app profile, then auto-login
    */
   async signUp(email: string, password: string): Promise<User> {
-    // 1. Create Supabase Auth + app profile via public endpoint
-    await api.post("/api/auth/signup", { email, password });
+    try {
+      await api.post("/api/auth/signup", { email, password });
+    } catch (error) {
+      throw new Error(getAuthErrorMessage(error, "ยังไม่สามารถสร้างบัญชีได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง"));
+    }
 
-    // 2. Auto-login with the new credentials
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      if (error.message.includes("Email not confirmed")) {
-        throw new Error("กรุณายืนยันอีเมลของคุณก่อนเข้าสู่ระบบ");
-      }
-      throw new Error(error.message);
+      throw new Error(getAuthErrorMessage(error, "สมัครสมาชิกสำเร็จแล้ว แต่ยังไม่สามารถเข้าสู่ระบบอัตโนมัติได้"));
     }
 
     if (!data.session) throw new Error("ไม่สามารถสร้าง session ได้");
 
-    // 3. Fetch app profile
-    const profile = await api.post<User>("/api/auth/profile", {});
-    const user = { ...profile, token: data.session.access_token };
-    localStorage.setItem("user", JSON.stringify(user));
-    return user;
+    return fetchAndStoreProfile("สร้างบัญชีสำเร็จแล้ว แต่ยังโหลดข้อมูลผู้ใช้ไม่ได้ กรุณาเข้าสู่ระบบอีกครั้ง");
   },
 
   /**
@@ -41,21 +72,12 @@ export const authService = {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      if (error.message.includes("Email not confirmed")) {
-        throw new Error("กรุณายืนยันอีเมลของคุณก่อนเข้าสู่ระบบ");
-      }
-      if (error.message.includes("Invalid login credentials")) {
-        throw new Error("อีเมลหรือรหัสผ่านไม่ถูกต้อง");
-      }
-      throw new Error(error.message);
+      throw new Error(getAuthErrorMessage(error, "ยังไม่สามารถเข้าสู่ระบบได้ในขณะนี้"));
     }
 
     if (!data.session) throw new Error("ไม่สามารถสร้าง session ได้");
 
-    const profile = await api.post<User>("/api/auth/profile", {});
-    const user = { ...profile, token: data.session.access_token };
-    localStorage.setItem("user", JSON.stringify(user));
-    return user;
+    return fetchAndStoreProfile("เข้าสู่ระบบสำเร็จแล้ว แต่ยังโหลดข้อมูลผู้ใช้ไม่ได้ กรุณาลองใหม่อีกครั้ง");
   },
 
   async signOut(): Promise<void> {
@@ -91,11 +113,7 @@ export const authService = {
 
   /** Fetch app profile from backend and store it (used after auth state change) */
   async fetchProfile(): Promise<User> {
-    const profile = await api.post<User>("/api/auth/profile", {});
-    const { data } = await supabase.auth.getSession();
-    const user = { ...profile, token: data.session?.access_token ?? "" };
-    localStorage.setItem("user", JSON.stringify(user));
-    return user;
+    return fetchAndStoreProfile("ยังไม่สามารถโหลดข้อมูลผู้ใช้ได้ กรุณาลองใหม่อีกครั้ง");
   },
 
   /** Change password via backend Supabase Admin API */

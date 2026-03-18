@@ -1,10 +1,10 @@
 import express from "express";
 import dotenv from "dotenv";
 import path from "path";
-import apiRoutes from "../server/routes/index";
-import { notFound, errorHandler } from "../server/middleware/error.middleware";
-import { apiRateLimiter } from "../server/middleware/rateLimit.middleware";
-import { initDB } from "../server/database/init";
+import apiRoutes from "../server/routes/index.js";
+import { notFound, errorHandler } from "../server/middleware/error.middleware.js";
+import { apiRateLimiter } from "../server/middleware/rateLimit.middleware.js";
+import { initDB } from "../server/database/init.js";
 
 dotenv.config();
 

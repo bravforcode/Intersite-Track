@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import {
   getNotificationsByUser, getUnreadCount,
   markNotificationRead, markAllNotificationsRead,
-} from "../database/queries/notification.queries";
+} from "../database/queries/notification.queries.js";
 
 export async function getNotifications(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

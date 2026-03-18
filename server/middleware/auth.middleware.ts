@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import { supabaseAdmin } from "../config/supabase";
-import { query } from "../database/connection";
+import { supabaseAdmin } from "../config/supabase.js";
+import { query } from "../database/connection.js";
 
 interface UserRow {
   id: number;

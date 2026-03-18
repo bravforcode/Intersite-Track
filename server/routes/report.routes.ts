@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { getStatsHandler, getStaffReportHandler, getDateRangeReport } from "../controllers/report.controller";
-import { requireAuth } from "../middleware/auth.middleware";
+import { getStatsHandler, getStaffReportHandler, getDateRangeReport } from "../controllers/report.controller.js";
+import { requireAuth } from "../middleware/auth.middleware.js";
 
 const router = Router();
 

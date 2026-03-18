@@ -1,9 +1,9 @@
 import { Router } from "express";
 import {
   getNotifications, getUnreadNotificationCount, markRead, markAllRead,
-} from "../controllers/notification.controller";
-import { requireAuth } from "../middleware/auth.middleware";
-import { toggleChecklist } from "../controllers/taskUpdate.controller";
+} from "../controllers/notification.controller.js";
+import { requireAuth } from "../middleware/auth.middleware.js";
+import { toggleChecklist } from "../controllers/taskUpdate.controller.js";
 
 const router = Router();
 

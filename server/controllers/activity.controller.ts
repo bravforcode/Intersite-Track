@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { getActivityByTaskId } from "../database/queries/activity.queries";
+import { getActivityByTaskId } from "../database/queries/activity.queries.js";
 
 export async function getTaskActivity(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

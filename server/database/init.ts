@@ -1,4 +1,4 @@
-import pool from "./connection";
+import pool from "./connection.js";
 
 /**
  * Verify database connectivity on startup.

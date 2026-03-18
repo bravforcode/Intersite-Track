@@ -1,5 +1,5 @@
 import { PoolClient } from "pg";
-import { query } from "../database/connection";
+import { query } from "../database/connection.js";
 
 export async function createAuditLog(
   taskId: number,

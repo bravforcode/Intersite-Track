@@ -30,7 +30,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setInfo("");
     try {
+      const normalizedEmail = email.trim().toLowerCase();
+      setEmail(normalizedEmail);
+
       if (password !== confirmPassword) {
         setError("รหัสผ่านไม่ตรงกัน");
         setLoading(false);
@@ -42,13 +46,21 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         return;
       }
 
-      const user = await authService.signUp(email, password);
+      const user = await authService.signUp(normalizedEmail, password);
       setInfo("");
       setPassword("");
       setConfirmPassword("");
       onLogin(user);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
+      const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
+      if (msg.includes("อีเมลนี้มีอยู่ในระบบแล้ว")) {
+        setView("login");
+        setInfo("อีเมลนี้มีอยู่ในระบบแล้ว กรุณาเข้าสู่ระบบด้วยรหัสผ่านของคุณ");
+        setPassword("");
+        setConfirmPassword("");
+        return;
+      }
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -58,8 +70,11 @@ export function LoginPage({ onLogin }: LoginPageProps) {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setInfo("");
     try {
-      const user = await authService.signIn(email, password);
+      const normalizedEmail = email.trim().toLowerCase();
+      setEmail(normalizedEmail);
+      const user = await authService.signIn(normalizedEmail, password);
       onLogin(user);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
@@ -161,6 +176,16 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.22 }}
             >
+              {info && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-emerald-50 text-emerald-700 text-sm p-3 rounded-xl mb-5 text-center border border-emerald-100"
+                >
+                  {info}
+                </motion.div>
+              )}
+
               {error && (
                 <motion.div
                   initial={{ opacity: 0, y: -8 }}
@@ -264,6 +289,16 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.22 }}
             >
+              {info && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-emerald-50 text-emerald-700 text-sm p-3 rounded-xl mb-5 text-center border border-emerald-100"
+                >
+                  {info}
+                </motion.div>
+              )}
+
               {error && (
                 <motion.div
                   initial={{ opacity: 0, y: -8 }}
@@ -361,6 +396,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   ) : "สร้างบัญชี"}
                 </motion.button>
               </form>
+
+              <p className="mt-4 text-center text-xs text-stone-400">
+                สร้างบัญชีแล้วระบบจะพาเข้าใช้งานทันทีด้วยอีเมลและรหัสผ่านนี้
+              </p>
 
               <button
                 onClick={() => { goTo("login"); setPassword(""); setConfirmPassword(""); }}

@@ -2,8 +2,8 @@ import { Router } from "express";
 import {
   getUsers, getUser, createUserHandler, updateUserHandler,
   deleteUserHandler, getUserTasksHandler,
-} from "../controllers/user.controller";
-import { requireAuth, requireRole } from "../middleware/auth.middleware";
+} from "../controllers/user.controller.js";
+import { requireAuth, requireRole } from "../middleware/auth.middleware.js";
 
 const router = Router();
 

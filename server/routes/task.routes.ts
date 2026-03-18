@@ -2,11 +2,11 @@ import { Router } from "express";
 import {
   getTasks, getTask, createTaskHandler, updateTaskHandler,
   updateStatus, deleteTaskHandler,
-} from "../controllers/task.controller";
+} from "../controllers/task.controller.js";
 import {
   getTaskUpdates, addTaskUpdate, getChecklists, saveChecklists, toggleChecklist,
-} from "../controllers/taskUpdate.controller";
-import { requireAuth, requireRole } from "../middleware/auth.middleware";
+} from "../controllers/taskUpdate.controller.js";
+import { requireAuth, requireRole } from "../middleware/auth.middleware.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";

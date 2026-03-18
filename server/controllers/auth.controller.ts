@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import { findUserById, createUser, findUserByUsername } from "../database/queries/user.queries";
-import { supabaseAdmin } from "../config/supabase";
+import { findUserById, createUser, findUserByUsername } from "../database/queries/user.queries.js";
+import { supabaseAdmin } from "../config/supabase.js";
 
 async function buildUniqueUsername(email: string): Promise<string> {
   const emailPrefix = email.split("@")[0] ?? "user";
@@ -27,7 +27,8 @@ async function buildUniqueUsername(email: string): Promise<string> {
  */
 export async function signup(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { email, password } = req.body;
+    const email = String(req.body?.email ?? "").trim().toLowerCase();
+    const password = String(req.body?.password ?? "");
 
     if (!email || !password) {
       res.status(400).json({ error: "กรุณากรอกอีเมลและรหัสผ่าน" });
@@ -48,9 +49,12 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
 
     if (authError) {
       res.status(400).json({
-        error: authError.message.includes("already registered")
-          ? "อีเมลนี้มีอยู่ในระบบแล้ว"
-          : authError.message,
+        error:
+          authError.message.includes("already registered")
+            ? "อีเมลนี้มีอยู่ในระบบแล้ว"
+            : authError.message.includes("email")
+              ? "รูปแบบอีเมลไม่ถูกต้อง"
+              : "ยังไม่สามารถสร้างบัญชีได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง",
       });
       return;
     }
@@ -77,7 +81,7 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
       if (msg.includes("unique") || msg.includes("duplicate")) {
         res.status(400).json({ error: "อีเมลนี้มีอยู่ในระบบแล้ว" });
       } else {
-        next(dbErr);
+        res.status(500).json({ error: "ยังไม่สามารถสร้างบัญชีได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง" });
       }
     }
   } catch (err) {
