@@ -36,11 +36,17 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         setLoading(false);
         return;
       }
-      await authService.signUp(email, password);
-      setInfo("สร้างบัญชีสำเร็จ กรุณายืนยันอีเมลของคุณ");
-      setView("verifyNotice");
+      if (password.length < 8) {
+        setError("รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร");
+        setLoading(false);
+        return;
+      }
+
+      const user = await authService.signUp(email, password);
+      setInfo("");
       setPassword("");
       setConfirmPassword("");
+      onLogin(user);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
     } finally {

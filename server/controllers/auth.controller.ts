@@ -1,6 +1,25 @@
 import { Request, Response, NextFunction } from "express";
-import { findUserById, createUser } from "../database/queries/user.queries";
+import { findUserById, createUser, findUserByUsername } from "../database/queries/user.queries";
 import { supabaseAdmin } from "../config/supabase";
+
+async function buildUniqueUsername(email: string): Promise<string> {
+  const emailPrefix = email.split("@")[0] ?? "user";
+  const normalizedBase = emailPrefix
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, "")
+    .replace(/^[._-]+|[._-]+$/g, "");
+
+  const base = normalizedBase || "user";
+  let candidate = base;
+  let suffix = 1;
+
+  while (await findUserByUsername(candidate)) {
+    suffix += 1;
+    candidate = `${base}${suffix}`;
+  }
+
+  return candidate;
+}
 
 /**
  * POST /api/auth/signup
@@ -40,7 +59,7 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
 
     // Create basic app profile with staff role, rollback Auth user if DB fails
     try {
-      const username = email.split("@")[0]; // Use email prefix as username
+      const username = await buildUniqueUsername(email);
       const id = await createUser({
         username,
         email,
