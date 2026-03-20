@@ -1,6 +1,32 @@
 import { Request, Response, NextFunction } from "express";
 import { supabaseAdmin } from "../config/supabase.js";
-import { findUserByAuthId, findUserById, updateOwnProfile } from "../database/queries/user.queries.js";
+
+interface AuthProfileRow {
+  id: number;
+  username: string;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  role: "admin" | "staff";
+  department_id: number | null;
+  position: string | null;
+  created_at: string | null;
+}
+
+function toSafeProfile(profile: AuthProfileRow) {
+  return {
+    id: profile.id,
+    username: profile.username,
+    email: profile.email,
+    first_name: profile.first_name ?? "",
+    last_name: profile.last_name ?? "",
+    role: profile.role,
+    department_id: profile.department_id,
+    department_name: null,
+    position: profile.position ?? "",
+    created_at: profile.created_at ?? undefined,
+  };
+}
 
 async function usernameExists(username: string): Promise<boolean> {
   const { data, error } = await supabaseAdmin
@@ -119,15 +145,23 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
  */
 export async function getProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const profile = await findUserByAuthId(req.user!.authId);
-
-    if (!profile) {
-      res.status(404).json({ error: "ไม่พบข้อมูลผู้ใช้" });
+    if (!req.user) {
+      res.status(401).json({ error: "กรุณาเข้าสู่ระบบก่อน" });
       return;
     }
 
-    const { password: _pw, ...safeProfile } = profile;
-    res.json(safeProfile);
+    res.json({
+      id: req.user.id,
+      username: req.user.username,
+      email: req.user.email,
+      first_name: req.user.first_name ?? "",
+      last_name: req.user.last_name ?? "",
+      role: req.user.role,
+      department_id: req.user.department_id ?? null,
+      department_name: req.user.department_name ?? null,
+      position: req.user.position ?? "",
+      created_at: req.user.created_at,
+    });
   } catch (err) {
     next(err);
   }
@@ -149,22 +183,24 @@ export async function updateMyProfile(req: Request, res: Response, next: NextFun
       return;
     }
 
-    await updateOwnProfile(req.user!.id, {
-      username,
-      first_name,
-      last_name,
-      position,
-    });
+    const { data: updatedProfile, error } = await supabaseAdmin
+      .from("users")
+      .update({
+        username,
+        first_name,
+        last_name,
+        position,
+      })
+      .eq("id", req.user!.id)
+      .select("id, username, email, first_name, last_name, role, department_id, position, created_at")
+      .single<AuthProfileRow>();
 
-    const updatedProfile = await findUserById(req.user!.id);
-
-    if (!updatedProfile) {
+    if (error || !updatedProfile) {
       res.status(404).json({ error: "ไม่พบข้อมูลผู้ใช้" });
       return;
     }
 
-    const { password: _pw, ...safeProfile } = updatedProfile;
-    res.json(safeProfile);
+    res.json(toSafeProfile(updatedProfile));
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "";
     if (msg.includes("unique") || msg.includes("duplicate")) {

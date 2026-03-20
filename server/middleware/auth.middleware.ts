@@ -7,6 +7,11 @@ interface AppUserRow {
   role: string;
   email: string | null;
   auth_id: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  department_id: number | null;
+  position: string | null;
+  created_at: string | null;
 }
 
 const AUTH_CACHE_TTL_MS = 30_000;
@@ -51,7 +56,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     const { data: appUser, error: profileError } = await supabaseAdmin
       .from("users")
-      .select("id, username, role, email, auth_id")
+      .select("id, username, role, email, auth_id, first_name, last_name, department_id, position, created_at")
       .eq("auth_id", authUser.id)
       .single<AppUserRow>();
 
@@ -67,6 +72,12 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       email: appUser.email,
       username: appUser.username,
       role: appUser.role,
+      first_name: appUser.first_name ?? "",
+      last_name: appUser.last_name ?? "",
+      department_id: appUser.department_id,
+      department_name: null,
+      position: appUser.position,
+      created_at: appUser.created_at ?? undefined,
     };
 
     authCache.set(token, {
