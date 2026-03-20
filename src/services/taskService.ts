@@ -1,5 +1,15 @@
 import api from "./api";
-import type { Task, TaskUpdate, ChecklistItem, CreateTaskDTO, UpdateTaskDTO, Stats } from "../types";
+import type {
+  Task,
+  TaskUpdate,
+  TaskComment,
+  TaskActivity,
+  ChecklistItem,
+  CreateTaskDTO,
+  UpdateTaskDTO,
+  Stats,
+  TaskWorkspace,
+} from "../types";
 
 export interface TaskFilters {
   search?: string;
@@ -8,6 +18,7 @@ export interface TaskFilters {
   assignee?: string;
   date_from?: string;
   date_to?: string;
+  user_id?: string;
 }
 
 function buildQuery(filters: TaskFilters): string {
@@ -23,6 +34,9 @@ export const taskService = {
 
   getTask: (id: number) => api.get<Task>(`/api/tasks/${id}`),
 
+  getWorkspace: (filters?: TaskFilters) =>
+    api.get<TaskWorkspace>(`/api/tasks/workspace${buildQuery(filters ?? {})}`),
+
   createTask: (dto: CreateTaskDTO) => api.post<{ id: number }>("/api/tasks", dto),
 
   updateTask: (id: number, dto: UpdateTaskDTO) => api.put<void>(`/api/tasks/${id}`, dto),
@@ -36,6 +50,13 @@ export const taskService = {
 
   addUpdate: (taskId: number, data: { user_id: number; update_text: string; progress: number; attachment_url?: string }) =>
     api.post<void>(`/api/tasks/${taskId}/updates`, data),
+
+  getComments: (taskId: number) => api.get<TaskComment[]>(`/api/tasks/${taskId}/comments`),
+
+  addComment: (taskId: number, message: string) =>
+    api.post<TaskComment>(`/api/tasks/${taskId}/comments`, { message }),
+
+  getActivity: (taskId: number) => api.get<TaskActivity[]>(`/api/tasks/${taskId}/activity`),
 
   getChecklists: (taskId: number) => api.get<ChecklistItem[]>(`/api/tasks/${taskId}/checklists`),
 
@@ -52,7 +73,7 @@ export const taskService = {
       : null;
     const formData = new FormData();
     formData.append("image", file);
-    const res = await fetch("/api/upload", {
+    const res = await fetch("/api/tasks/upload", {
       method: "POST",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData,

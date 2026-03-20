@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { signup, getProfile, changePassword } from "../controllers/auth.controller.js";
+import { signup, getProfile, updateMyProfile, changePassword } from "../controllers/auth.controller.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 
 const router = Router();
@@ -9,6 +9,9 @@ router.post("/auth/signup", signup);
 
 // Called by frontend after Supabase sign-in to get app profile (role, dept, etc.)
 router.post("/auth/profile", requireAuth, getProfile);
+
+// Allow users to update their own profile without elevated permissions
+router.put("/auth/me", requireAuth, updateMyProfile);
 
 // Change password via Supabase Auth admin API
 router.put("/users/:id/password", requireAuth, changePassword);

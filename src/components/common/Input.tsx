@@ -22,13 +22,13 @@ export function Input({ label, error, required, className = "", ...props }: Inpu
   return (
     <div className="w-full">
       {label && (
-        <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-1 ml-1">
+        <label className="block text-xs font-bold uppercase tracking-wider text-sky-700/70 mb-1 ml-1">
           {label}
           {required && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
       <input
-        className={`w-full px-4 py-2.5 rounded-xl border ${error ? "border-red-400 focus:ring-red-400" : "border-gray-200 focus:ring-[#5A5A40]"} focus:ring-2 focus:border-transparent outline-none transition-all text-sm ${className}`}
+        className={`w-full px-4 py-2.5 rounded-xl border bg-sky-50/70 ${error ? "border-red-400 focus:ring-red-400" : "border-sky-100 focus:ring-blue-500"} focus:ring-2 focus:border-transparent outline-none transition-all text-sm text-slate-900 placeholder:text-slate-400 ${className}`}
         {...props}
       />
       {error && <p className="text-xs text-red-500 mt-1 ml-1">{error}</p>}

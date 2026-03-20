@@ -9,15 +9,16 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+const THEME_STORAGE_KEY = "app-theme-v2";
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
     // If feature flag is off, force light mode
     if (!features.premiumTheme.enabled) return "light";
-    
-    const saved = localStorage.getItem("app-theme") as Theme;
-    if (saved) return saved;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+
+    const saved = localStorage.getItem(THEME_STORAGE_KEY) as Theme | null;
+    if (saved === "light" || saved === "dark") return saved;
+    return "light";
   });
 
   useEffect(() => {
@@ -31,7 +32,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } else {
       document.documentElement.classList.remove("dark");
     }
-    localStorage.setItem("app-theme", theme);
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
   }, [theme]);
 
   const toggleTheme = () => {

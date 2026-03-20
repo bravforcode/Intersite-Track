@@ -3,33 +3,67 @@ import {
   findAllTasks, findTaskById, createTask, updateTask, deleteTask,
   updateTaskStatus, getTaskAssignments, setTaskAssignments, getCurrentAssignments,
 } from "../database/queries/task.queries.js";
+import { findAllUsers } from "../database/queries/user.queries.js";
 import { createNotification } from "../database/queries/notification.queries.js";
-import { transaction } from "../database/connection.js";
+import { query, transaction } from "../database/connection.js";
 import { createAuditLog } from "../utils/auditLogger.js";
+import { ensureTaskAccess } from "../utils/taskAccess.js";
 
 const STATUS_THAI: Record<string, string> = {
   pending: "รอดำเนินการ", in_progress: "กำลังดำเนินการ",
   completed: "เสร็จสิ้น", cancelled: "ยกเลิก",
 };
 
+interface TaskTypeRow {
+  id: number;
+  name: string;
+}
+
 /** GET /api/tasks */
 export async function getTasks(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const tasks = await findAllTasks(req.query as Record<string, string>);
-    for (const task of tasks) {
-      task.assignments = await getTaskAssignments(task.id as number);
-    }
+    const filters = {
+      ...(req.query as Record<string, string>),
+      ...(req.user?.role === "staff" ? { user_id: String(req.user.id) } : {}),
+    };
+    const tasks = await findAllTasks(filters);
     res.json(tasks);
   } catch (err) { next(err); }
+}
+
+/** GET /api/tasks/workspace */
+export async function getTasksWorkspace(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const filters = {
+      ...(req.query as Record<string, string>),
+      ...(req.user?.role === "staff" ? { user_id: String(req.user.id) } : {}),
+    };
+    const [tasks, users, taskTypesResult] = await Promise.all([
+      findAllTasks(filters),
+      findAllUsers(),
+      query<TaskTypeRow>("SELECT id, name FROM task_types ORDER BY id"),
+    ]);
+
+    res.json({
+      tasks,
+      users,
+      taskTypes: taskTypesResult.rows,
+    });
+  } catch (err) {
+    next(err);
+  }
 }
 
 /** GET /api/tasks/:id */
 export async function getTask(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const task = await findTaskById(Number(req.params.id));
-    if (!task) { res.status(404).json({ error: "ไม่พบงาน" }); return; }
-    task.assignments = await getTaskAssignments(task.id as number);
-    res.json(task);
+    const access = await ensureTaskAccess(req.user, Number(req.params.id));
+    if (!access.ok || !access.task) {
+      res.status(access.status ?? 403).json({ error: access.error ?? "คุณไม่มีสิทธิ์เข้าถึงงานนี้" });
+      return;
+    }
+
+    res.json(access.task);
   } catch (err) { next(err); }
 }
 
@@ -88,22 +122,18 @@ export async function updateStatus(req: Request, res: Response, next: NextFuncti
   try {
     const taskId = Number(req.params.id);
     const { status, progress } = req.body;
-    
-    const task = await findTaskById(taskId);
-    if (!task) {
-      res.status(404).json({ error: "ไม่พบงาน" });
+
+    const access = await ensureTaskAccess(req.user, taskId);
+
+    if (!access.ok || !access.task) {
+      res.status(access.status ?? 403).json({ error: access.error ?? "คุณไม่มีสิทธิ์เปลี่ยนสถานะงานนี้" });
       return;
     }
 
-    const assignments = await getTaskAssignments(taskId);
+    const task = access.task;
+    const assignments = task.assignments ?? [];
 
     if (req.user?.role === "staff") {
-      const isAssigned = assignments.some(a => a.id === req.user?.id);
-      if (!isAssigned) {
-        res.status(403).json({ error: "คุณไม่มีสิทธิ์เปลี่ยนสถานะงานนี้" });
-        return;
-      }
-      
       if (task.status === "cancelled") {
         res.status(403).json({ error: "เจ้าหน้าที่ไม่สามารถเปลี่ยนสถานะงานที่ถูกยกเลิกแล้ว" });
         return;

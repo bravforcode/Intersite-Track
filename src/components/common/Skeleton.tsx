@@ -1,17 +1,10 @@
-import { motion } from "motion/react";
-
 interface SkeletonProps {
   className?: string;
 }
 
 export function Skeleton({ className = "" }: SkeletonProps) {
   return (
-    <motion.div
-      initial={{ opacity: 0.5 }}
-      animate={{ opacity: 1 }}
-      transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut", repeatType: "reverse" }}
-      className={`bg-gray-200 rounded-xl ${className}`}
-    />
+    <div className={`bg-sky-100/90 rounded-xl animate-pulse ${className}`} />
   );
 }
 

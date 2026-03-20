@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { supabaseAdmin } from "../config/supabase.js";
+import { findUserByAuthId, findUserById, updateOwnProfile } from "../database/queries/user.queries.js";
 
 async function usernameExists(username: string): Promise<boolean> {
   const { data, error } = await supabaseAdmin
@@ -118,19 +119,59 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
  */
 export async function getProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { data: profile, error } = await supabaseAdmin
-      .from("users")
-      .select("id, username, email, auth_id, first_name, last_name, role, department_id, position, created_at")
-      .eq("id", req.user!.id)
-      .single();
+    const profile = await findUserByAuthId(req.user!.authId);
 
-    if (error || !profile) {
+    if (!profile) {
       res.status(404).json({ error: "ไม่พบข้อมูลผู้ใช้" });
       return;
     }
 
-    res.json(profile);
+    const { password: _pw, ...safeProfile } = profile;
+    res.json(safeProfile);
   } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * PUT /api/auth/me
+ * Allow authenticated users to update their own profile safely.
+ */
+export async function updateMyProfile(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const username = String(req.body?.username ?? "").trim();
+    const first_name = String(req.body?.first_name ?? "").trim();
+    const last_name = String(req.body?.last_name ?? "").trim();
+    const position = typeof req.body?.position === "string" ? req.body.position.trim() : null;
+
+    if (!username || !first_name || !last_name) {
+      res.status(400).json({ error: "กรุณากรอกชื่อผู้ใช้ ชื่อ และนามสกุลให้ครบ" });
+      return;
+    }
+
+    await updateOwnProfile(req.user!.id, {
+      username,
+      first_name,
+      last_name,
+      position,
+    });
+
+    const updatedProfile = await findUserById(req.user!.id);
+
+    if (!updatedProfile) {
+      res.status(404).json({ error: "ไม่พบข้อมูลผู้ใช้" });
+      return;
+    }
+
+    const { password: _pw, ...safeProfile } = updatedProfile;
+    res.json(safeProfile);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "";
+    if (msg.includes("unique") || msg.includes("duplicate")) {
+      res.status(400).json({ error: "ชื่อผู้ใช้นี้มีอยู่แล้ว" });
+      return;
+    }
+
     next(err);
   }
 }
@@ -141,7 +182,18 @@ export async function getProfile(req: Request, res: Response, next: NextFunction
  */
 export async function changePassword(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    const targetUserId = Number(req.params.id);
     const { new_password } = req.body;
+
+    if (!req.user) {
+      res.status(401).json({ error: "กรุณาเข้าสู่ระบบก่อน" });
+      return;
+    }
+
+    if (req.user.role !== "admin" && req.user.id !== targetUserId) {
+      res.status(403).json({ error: "คุณไม่มีสิทธิ์เปลี่ยนรหัสผ่านของผู้ใช้นี้" });
+      return;
+    }
 
     if (!new_password || new_password.length < 8) {
       res.status(400).json({ error: "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร" });
@@ -151,7 +203,7 @@ export async function changePassword(req: Request, res: Response, next: NextFunc
     const { data: user, error: userError } = await supabaseAdmin
       .from("users")
       .select("auth_id")
-      .eq("id", Number(req.params.id))
+      .eq("id", targetUserId)
       .single();
 
     if (userError || !user) {

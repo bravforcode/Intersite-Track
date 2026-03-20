@@ -110,12 +110,13 @@ export function ReportsPage({ refreshTrigger = 0 }: ReportsPageProps) {
       </div>
 
       <div className="app-surface rounded-3xl p-6">
-        <h4 className="text-sm font-bold uppercase tracking-wider app-soft mb-6">รายงานตามเจ้าหน้าที่</h4>
+        <h4 className="text-sm font-bold uppercase tracking-wider app-soft mb-6">รายงานตามบุคลากร</h4>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="px-4 py-3 text-xs font-bold uppercase app-muted">เจ้าหน้าที่</th>
+                <th className="px-4 py-3 text-xs font-bold uppercase app-muted">บุคลากร</th>
+                <th className="px-4 py-3 text-xs font-bold uppercase app-muted">บทบาท</th>
                 <th className="px-4 py-3 text-xs font-bold uppercase app-muted">หน่วยงาน</th>
                 <th className="px-4 py-3 text-xs font-bold uppercase app-muted text-center">ทั้งหมด</th>
                 <th className="px-4 py-3 text-xs font-bold uppercase app-muted text-center">เสร็จสิ้น</th>
@@ -136,6 +137,11 @@ export function ReportsPage({ refreshTrigger = 0 }: ReportsPageProps) {
                         </div>
                         <span className="text-sm font-medium app-heading">{s.first_name} {s.last_name}</span>
                       </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${s.role === "admin" ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
+                        {s.role === "admin" ? "ผู้ดูแลระบบ" : "เจ้าหน้าที่"}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-sm app-muted">{s.department_name || "-"}</td>
                     <td className="px-4 py-3 text-sm text-center font-bold app-heading">{s.total_tasks}</td>
@@ -187,7 +193,7 @@ export function ReportsPage({ refreshTrigger = 0 }: ReportsPageProps) {
               <tbody className="divide-y divide-gray-50">
                 {dateReport.map((r, i) => (
                   <tr key={i} className="hover:bg-[var(--app-surface-muted)] transition-colors">
-                    <td className="px-4 py-3 text-sm app-heading">{formatDate(r.due_date as string)}</td>
+                    <td className="px-4 py-3 text-sm app-heading">{formatDate(r.date as string)}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-bold px-2 py-1 rounded ${statusColor[r.status as string]}`}>{statusLabel[r.status as string]}</span>
                     </td>

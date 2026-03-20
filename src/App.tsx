@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { Suspense, lazy, useCallback, useEffect, useState } from "react";
 import { LayoutDashboard, Users, ClipboardList, Bell, BarChart3, Database } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 
@@ -9,20 +9,49 @@ import { userService } from "./services/userService";
 import { notificationService } from "./services/notificationService";
 
 import { LoginPage } from "./components/auth/LoginPage";
-import { ProfileModal } from "./components/auth/ProfileModal";
 import { MainLayout } from "./components/layout/MainLayout";
 import { DashboardPage } from "./components/dashboard/DashboardPage";
-import { TasksPage } from "./components/tasks/TasksPage";
-import { TaskFormModal } from "./components/tasks/TaskFormModal";
-import { TaskDetailModal } from "./components/tasks/TaskDetailModal";
-import { StaffPage } from "./components/staff/StaffPage";
-import { UserFormModal } from "./components/staff/UserFormModal";
-import { ReportsPage } from "./components/reports/ReportsPage";
-import { NotificationsPage } from "./components/notifications/NotificationsPage";
-import { SettingsPage } from "./components/settings/SettingsPage";
-import { ConfirmDialog } from "./components/common/ConfirmDialog";
 
-import type { User, Task, Department, TaskType, Notification, Stats } from "./types";
+import type { Notification, Task, User } from "./types";
+
+const TasksPage = lazy(() =>
+  import("./components/tasks/TasksPage").then((module) => ({ default: module.TasksPage }))
+);
+const TaskFormModal = lazy(() =>
+  import("./components/tasks/TaskFormModal").then((module) => ({ default: module.TaskFormModal }))
+);
+const TaskDetailModal = lazy(() =>
+  import("./components/tasks/TaskDetailModal").then((module) => ({ default: module.TaskDetailModal }))
+);
+const StaffPage = lazy(() =>
+  import("./components/staff/StaffPage").then((module) => ({ default: module.StaffPage }))
+);
+const UserFormModal = lazy(() =>
+  import("./components/staff/UserFormModal").then((module) => ({ default: module.UserFormModal }))
+);
+const ReportsPage = lazy(() =>
+  import("./components/reports/ReportsPage").then((module) => ({ default: module.ReportsPage }))
+);
+const NotificationsPage = lazy(() =>
+  import("./components/notifications/NotificationsPage").then((module) => ({ default: module.NotificationsPage }))
+);
+const SettingsPage = lazy(() =>
+  import("./components/settings/SettingsPage").then((module) => ({ default: module.SettingsPage }))
+);
+const ProfileModal = lazy(() =>
+  import("./components/auth/ProfileModal").then((module) => ({ default: module.ProfileModal }))
+);
+const ConfirmDialog = lazy(() =>
+  import("./components/common/ConfirmDialog").then((module) => ({ default: module.ConfirmDialog }))
+);
+
+function PageFallback() {
+  return (
+    <div className="app-surface rounded-[2rem] p-6 text-sm app-soft">
+      กำลังโหลดเนื้อหา...
+    </div>
+  );
+}
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -43,20 +72,25 @@ export default function App() {
   const triggerRefresh = useCallback(() => setRefreshTrigger((prev) => prev + 1), []);
 
   useEffect(() => {
-    // Restore user from localStorage first (faster, no DB access)
     const saved = authService.getStoredUser();
-    if (saved) setUser(saved);
+    if (saved) {
+      setUser(saved);
+    } else {
+      void supabase.auth.getSession().then(async ({ data }) => {
+        if (!data.session) return;
 
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "SIGNED_IN" && session) {
         try {
           const profile = await authService.fetchProfile();
           setUser(profile);
         } catch {
-          // Profile fetch failed — user may not exist in app DB yet
+          // Ignore stale sessions that do not map to an app profile.
         }
-      } else if (event === "SIGNED_OUT") {
+      });
+    }
+
+    // Do not make async Supabase calls inside this callback.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
         setUser(null);
         setActiveTab("dashboard");
       }
@@ -66,31 +100,50 @@ export default function App() {
   }, []);
 
 
-  const fetchNotifications = useCallback(async () => {
+  const fetchUnreadCount = useCallback(async () => {
     if (!user) return;
     try {
-      const [n, c] = await Promise.all([
-        notificationService.getNotifications(user.id),
-        notificationService.getUnreadCount(user.id),
-      ]);
-      setNotifications(n); setUnreadCount(c.count);
+      const { count } = await notificationService.getUnreadCount(user.id);
+      setUnreadCount(count);
     } catch {}
   }, [user]);
 
-  useEffect(() => { fetchNotifications(); }, [fetchNotifications, activeTab, refreshTrigger]);
+  const fetchNotifications = useCallback(async () => {
+    if (!user) return;
+    try {
+      const items = await notificationService.getNotifications(user.id);
+      setNotifications(items);
+    } catch {}
+  }, [user]);
+
+  useEffect(() => {
+    void fetchUnreadCount();
+  }, [fetchUnreadCount, refreshTrigger]);
+
+  useEffect(() => {
+    if (activeTab !== "notifications") return;
+    void fetchNotifications();
+  }, [activeTab, fetchNotifications, refreshTrigger]);
 
   useEffect(() => {
     if (!user) return;
-    const interval = setInterval(fetchNotifications, 30000);
+    const interval = setInterval(() => {
+      void fetchUnreadCount();
+      if (activeTab === "notifications") {
+        void fetchNotifications();
+      }
+    }, 30000);
     return () => clearInterval(interval);
-  }, [user, fetchNotifications]);
+  }, [activeTab, fetchNotifications, fetchUnreadCount, user]);
 
   const handleLogin = (loggedInUser: User) => setUser(loggedInUser);
 
   const handleLogout = async () => {
-    await authService.signOut();
     setUser(null);
     setActiveTab("dashboard");
+    setNotifications([]);
+    setUnreadCount(0);
+    void authService.signOut();
   };
 
   if (!user) return <LoginPage onLogin={handleLogin} />;
@@ -115,7 +168,7 @@ export default function App() {
         user={user} activeTab={activeTab} tabs={tabs} tabTitles={tabTitles}
         unreadCount={unreadCount} onTabChange={setActiveTab} onLogout={handleLogout}
         onProfileClick={() => setProfileOpen(true)}
-        onNotificationClick={() => { setActiveTab("notifications"); fetchNotifications(); }}
+        onNotificationClick={() => { setActiveTab("notifications"); void fetchNotifications(); }}
         onCreateTask={() => { setEditingTask(null); setTaskFormOpen(true); }}
         onCreateUser={() => { setEditingUser(null); setUserFormOpen(true); }}
       >
@@ -128,55 +181,95 @@ export default function App() {
           )}
           {activeTab === "tasks" && (
             <React.Fragment key="tasks">
-              <TasksPage currentUser={user} refreshTrigger={refreshTrigger}
-                onViewTask={setSelectedTask} onEditTask={(t) => { setEditingTask(t); setTaskFormOpen(true); }} />
+              <Suspense fallback={<PageFallback />}>
+                <TasksPage currentUser={user} refreshTrigger={refreshTrigger}
+                  onViewTask={setSelectedTask} onEditTask={(t) => { setEditingTask(t); setTaskFormOpen(true); }} />
+              </Suspense>
             </React.Fragment>
           )}
           {activeTab === "staff" && (
             <React.Fragment key="staff">
-              <StaffPage refreshTrigger={refreshTrigger} onEdit={(u) => { setEditingUser(u); setUserFormOpen(true); }}
-                onDelete={(uid) => setConfirmDialog({ message: "ต้องการลบเจ้าหน้าที่นี้?", onConfirm: async () => { await userService.deleteUser(uid); triggerRefresh(); setConfirmDialog(null); } })} />
+              <Suspense fallback={<PageFallback />}>
+                <StaffPage refreshTrigger={refreshTrigger} onEdit={(u) => { setEditingUser(u); setUserFormOpen(true); }}
+                  onDelete={(uid) => setConfirmDialog({ message: "ต้องการลบเจ้าหน้าที่นี้?", onConfirm: async () => { await userService.deleteUser(uid); triggerRefresh(); setConfirmDialog(null); } })} />
+              </Suspense>
             </React.Fragment>
           )}
-          {activeTab === "reports" && <React.Fragment key="reports"><ReportsPage refreshTrigger={refreshTrigger} /></React.Fragment>}
+          {activeTab === "reports" && (
+            <React.Fragment key="reports">
+              <Suspense fallback={<PageFallback />}>
+                <ReportsPage refreshTrigger={refreshTrigger} />
+              </Suspense>
+            </React.Fragment>
+          )}
           {activeTab === "notifications" && (
             <React.Fragment key="notifications">
-              <NotificationsPage notifications={notifications}
-                onMarkRead={async (id) => { await notificationService.markRead(id); fetchNotifications(); }}
-                onMarkAllRead={async () => { await notificationService.markAllRead(user.id); fetchNotifications(); }}
-                onViewTask={async (refId) => { const t = await taskService.getTask(refId); setSelectedTask(t); }} />
+              <Suspense fallback={<PageFallback />}>
+                <NotificationsPage notifications={notifications}
+                  onMarkRead={async (id) => {
+                    await notificationService.markRead(id);
+                    await Promise.all([fetchNotifications(), fetchUnreadCount()]);
+                  }}
+                  onMarkAllRead={async () => {
+                    await notificationService.markAllRead(user.id);
+                    await Promise.all([fetchNotifications(), fetchUnreadCount()]);
+                  }}
+                  onViewTask={async (refId) => { const t = await taskService.getTask(refId); setSelectedTask(t); }} />
+              </Suspense>
             </React.Fragment>
           )}
           {activeTab === "settings" && (
             <React.Fragment key="settings">
-              <SettingsPage refreshTrigger={refreshTrigger} />
+              <Suspense fallback={<PageFallback />}>
+                <SettingsPage refreshTrigger={refreshTrigger} />
+              </Suspense>
             </React.Fragment>
           )}
         </AnimatePresence>
       </MainLayout>
 
       {taskFormOpen && (
-        <TaskFormModal task={editingTask} currentUser={user}
-          onClose={() => { setTaskFormOpen(false); setEditingTask(null); }}
-          onSave={() => { setTaskFormOpen(false); setEditingTask(null); triggerRefresh(); }} />
+        <Suspense fallback={null}>
+          <TaskFormModal task={editingTask} currentUser={user}
+            onClose={() => { setTaskFormOpen(false); setEditingTask(null); }}
+            onSave={() => { setTaskFormOpen(false); setEditingTask(null); triggerRefresh(); }} />
+        </Suspense>
       )}
       {selectedTask && (
-        <TaskDetailModal task={selectedTask} user={user}
-          onClose={() => setSelectedTask(null)}
-          onUpdate={async () => { triggerRefresh(); fetchNotifications(); try { const t = await taskService.getTask(selectedTask.id); setSelectedTask(t); } catch {} }}
-          onEdit={(t) => { setSelectedTask(null); setEditingTask(t); setTaskFormOpen(true); }} />
+        <Suspense fallback={null}>
+          <TaskDetailModal task={selectedTask} user={user}
+            onClose={() => setSelectedTask(null)}
+            onUpdate={async () => {
+              triggerRefresh();
+              await fetchUnreadCount();
+              if (activeTab === "notifications") {
+                await fetchNotifications();
+              }
+              try {
+                const t = await taskService.getTask(selectedTask.id);
+                setSelectedTask(t);
+              } catch {}
+            }}
+            onEdit={(t) => { setSelectedTask(null); setEditingTask(t); setTaskFormOpen(true); }} />
+        </Suspense>
       )}
       {userFormOpen && (
-        <UserFormModal user={editingUser}
-          onClose={() => { setUserFormOpen(false); setEditingUser(null); }}
-          onSave={() => { setUserFormOpen(false); setEditingUser(null); triggerRefresh(); }} />
+        <Suspense fallback={null}>
+          <UserFormModal user={editingUser}
+            onClose={() => { setUserFormOpen(false); setEditingUser(null); }}
+            onSave={() => { setUserFormOpen(false); setEditingUser(null); triggerRefresh(); }} />
+        </Suspense>
       )}
       {profileOpen && (
-        <ProfileModal user={user} onClose={() => setProfileOpen(false)}
-          onSave={(updated) => { setUser(updated); localStorage.setItem("user", JSON.stringify(updated)); setProfileOpen(false); triggerRefresh(); }} />
+        <Suspense fallback={null}>
+          <ProfileModal user={user} onClose={() => setProfileOpen(false)}
+            onSave={(updated) => { setUser(updated); localStorage.setItem("user", JSON.stringify(updated)); setProfileOpen(false); triggerRefresh(); }} />
+        </Suspense>
       )}
       {confirmDialog && (
-        <ConfirmDialog message={confirmDialog.message} onConfirm={confirmDialog.onConfirm} onCancel={() => setConfirmDialog(null)} />
+        <Suspense fallback={null}>
+          <ConfirmDialog message={confirmDialog.message} onConfirm={confirmDialog.onConfirm} onCancel={() => setConfirmDialog(null)} />
+        </Suspense>
       )}
     </>
   );

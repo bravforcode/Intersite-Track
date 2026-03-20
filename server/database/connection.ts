@@ -1,39 +1,20 @@
 import pg from "pg";
-import dotenv from "dotenv";
+import { databaseConfig } from "../config/database.js";
 
-dotenv.config();
+const { Pool } = pg;
 
-const isServerless = process.env.VERCEL === "1";
-const useSSL = process.env.PGSSL === "true" || process.env.PGHOST?.includes("supabase.co");
-
-const pool = new pg.Pool({
-  host: process.env.PGHOST || "localhost",
-  port: Number(process.env.PGPORT) || 5432,
-  database: process.env.PGDATABASE || "postgres",
-  user: process.env.PGUSER || "postgres",
-  password: process.env.PGPASSWORD || "",
-  max: isServerless ? 1 : 10,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
-  ssl: useSSL ? { rejectUnauthorized: false } : false,
-});
-
-pool.on("error", (err) => {
-  console.error("Unexpected database pool error:", err);
-});
+// Create connection pool
+export const pool = new Pool(databaseConfig);
 
 /**
- * Execute a parameterized query
+ * Execute a query
  */
-export async function query<T = Record<string, unknown>>(
-  sql: string,
-  params?: unknown[]
-): Promise<pg.QueryResult<T>> {
-  return pool.query<T>(sql, params);
+export async function query<T = any>(sql: string, params?: any[]): Promise<pg.QueryResult<T>> {
+  return pool.query(sql, params);
 }
 
 /**
- * Execute multiple queries in a transaction
+ * Execute a transaction
  */
 export async function transaction<T>(
   callback: (client: pg.PoolClient) => Promise<T>
@@ -44,12 +25,19 @@ export async function transaction<T>(
     const result = await callback(client);
     await client.query("COMMIT");
     return result;
-  } catch (err) {
+  } catch (error) {
     await client.query("ROLLBACK");
-    throw err;
+    throw error;
   } finally {
     client.release();
   }
+}
+
+/**
+ * Close all connections
+ */
+export async function closePool(): Promise<void> {
+  await pool.end();
 }
 
 export default pool;

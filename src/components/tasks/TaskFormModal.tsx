@@ -205,12 +205,15 @@ export function TaskFormModal({ task, currentUser, onClose, onSave }: TaskFormMo
             <div className="md:col-span-2">
               <label className="block text-xs font-bold uppercase text-gray-400 mb-1">มอบหมายให้</label>
               <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-xl border border-gray-200 max-h-32 overflow-y-auto">
-                {users.filter((u) => u.role === "staff").map((u) => (
+                {users.map((u) => (
                   <label key={u.id} className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-gray-200 cursor-pointer hover:border-[#5A5A40] transition-colors">
                     <input type="checkbox" className="rounded text-[#5A5A40] focus:ring-[#5A5A40]"
                       checked={form.assigned_user_ids.includes(u.id)}
                       onChange={(e) => toggleAssignee(u.id, e.target.checked)} />
                     <span className="text-xs font-medium">{u.first_name} {u.last_name}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${u.role === "admin" ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
+                      {u.role === "admin" ? "admin" : "staff"}
+                    </span>
                   </label>
                 ))}
               </div>

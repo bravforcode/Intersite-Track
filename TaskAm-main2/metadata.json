@@ -1,0 +1,5 @@
+{
+  "name": "Staff Task Management System",
+  "description": "ระบบบริหารจัดการงานเจ้าหน้าที่ สำหรับมอบหมายงาน ติดตามความคืบหน้า และสรุปรายงานผลการดำเนินงาน",
+  "requestFramePermissions": []
+}

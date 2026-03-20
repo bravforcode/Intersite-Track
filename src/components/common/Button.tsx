@@ -17,10 +17,10 @@ type ButtonProps = {
 };
 
 const variantClasses: Record<Variant, string> = {
-  primary: "bg-[#5A5A40] text-white hover:bg-[#4A4A30] shadow-md",
-  secondary: "bg-gray-100 text-gray-700 hover:bg-gray-200",
+  primary: "bg-blue-600 text-white hover:bg-blue-700 shadow-md shadow-blue-500/20",
+  secondary: "bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-100",
   danger: "bg-red-500 text-white hover:bg-red-600 shadow-md",
-  ghost: "text-gray-500 hover:bg-gray-100",
+  ghost: "text-slate-500 hover:bg-blue-50",
 };
 
 const sizeClasses: Record<Size, string> = {

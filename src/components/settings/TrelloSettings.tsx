@@ -277,11 +277,11 @@ export default function TrelloSettings({ systemUsers }: Props) {
               </div>
               <div>
                 <h3 className="font-semibold app-heading">แมปผู้ใช้ → Trello Member</h3>
-                <p className="text-xs app-soft">เลือก Trello Member ที่ตรงกับเจ้าหน้าที่แต่ละคน</p>
+                <p className="text-xs app-soft">เลือก Trello Member ที่ตรงกับผู้ใช้แต่ละคน</p>
               </div>
             </div>
             <div className="space-y-3">
-              {systemUsers.filter(u => (u as any).role !== 'admin').map(u => (
+              {systemUsers.map(u => (
                 <div key={u.id} className="flex items-center gap-4">
                   <div className="w-8 h-8 rounded-full bg-[#F5F5F0] flex items-center justify-center text-[#5A5A40] font-bold text-xs flex-shrink-0">
                     {u.first_name[0]}{u.last_name[0]}
@@ -301,7 +301,7 @@ export default function TrelloSettings({ systemUsers }: Props) {
                   </select>
                 </div>
               ))}
-              {systemUsers.length === 0 && <p className="text-sm app-soft">ไม่มีเจ้าหน้าที่</p>}
+              {systemUsers.length === 0 && <p className="text-sm app-soft">ไม่มีผู้ใช้ในระบบ</p>}
             </div>
           </div>
 

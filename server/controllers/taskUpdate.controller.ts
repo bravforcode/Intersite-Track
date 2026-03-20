@@ -1,10 +1,18 @@
 import { Request, Response, NextFunction } from "express";
 import { query, transaction } from "../database/connection.js";
 import { createNotification } from "../database/queries/notification.queries.js";
+import { createAuditLog } from "../utils/auditLogger.js";
+import { ensureTaskAccess } from "../utils/taskAccess.js";
 
 /** GET /api/tasks/:id/updates */
 export async function getTaskUpdates(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    const access = await ensureTaskAccess(req.user, Number(req.params.id));
+    if (!access.ok) {
+      res.status(access.status ?? 403).json({ error: access.error ?? "คุณไม่มีสิทธิ์เข้าถึงงานนี้" });
+      return;
+    }
+
     const result = await query(
       `SELECT tu.*, u.first_name, u.last_name
        FROM task_updates tu JOIN users u ON tu.user_id = u.id
@@ -19,12 +27,28 @@ export async function getTaskUpdates(req: Request, res: Response, next: NextFunc
 export async function addTaskUpdate(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const taskId = Number(req.params.id);
-    const { user_id, update_text, progress, attachment_url } = req.body;
+    const { update_text, progress, attachment_url } = req.body;
+    const access = await ensureTaskAccess(req.user, taskId);
+
+    if (!access.ok || !access.task) {
+      res.status(access.status ?? 403).json({ error: access.error ?? "คุณไม่มีสิทธิ์อัปเดตงานนี้" });
+      return;
+    }
+
+    if (!req.user) {
+      res.status(401).json({ error: "กรุณาเข้าสู่ระบบก่อน" });
+      return;
+    }
+
+    if (!update_text || String(update_text).trim() === "") {
+      res.status(400).json({ error: "กรุณาระบุรายละเอียดความคืบหน้า" });
+      return;
+    }
 
     await transaction(async (client) => {
       await client.query(
         "INSERT INTO task_updates (task_id, user_id, update_text, progress, attachment_url) VALUES ($1,$2,$3,$4,$5)",
-        [taskId, user_id, update_text, progress, attachment_url || null]
+        [taskId, req.user!.id, update_text, progress, attachment_url || null]
       );
       const newStatus = progress >= 100 ? "completed" : "in_progress";
       await client.query(
@@ -33,13 +57,22 @@ export async function addTaskUpdate(req: Request, res: Response, next: NextFunct
       );
       const taskResult = await client.query("SELECT title, created_by FROM tasks WHERE id=$1", [taskId]);
       const task = taskResult.rows[0];
-      if (task.created_by !== user_id) {
+      if (task.created_by !== req.user!.id) {
         await createNotification(
           task.created_by, "อัปเดตงาน",
           `งาน "${task.title}" มีการอัปเดตความคืบหน้า (${progress}%)`,
           "task_updated", taskId
         );
       }
+
+      await createAuditLog(
+        taskId,
+        req.user!.id,
+        "PROGRESS_UPDATE",
+        { progress: access.task!.progress, status: access.task!.status },
+        { progress, status: newStatus, update_text: String(update_text).trim(), attachment_url: attachment_url || null },
+        client
+      );
     });
     res.json({ success: true });
   } catch (err) { next(err); }
@@ -48,6 +81,12 @@ export async function addTaskUpdate(req: Request, res: Response, next: NextFunct
 /** GET /api/tasks/:id/checklists */
 export async function getChecklists(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
+    const access = await ensureTaskAccess(req.user, Number(req.params.id));
+    if (!access.ok) {
+      res.status(access.status ?? 403).json({ error: access.error ?? "คุณไม่มีสิทธิ์เข้าถึงงานนี้" });
+      return;
+    }
+
     const result = await query(
       "SELECT * FROM task_checklists WHERE task_id=$1 ORDER BY sort_order, id",
       [req.params.id]
@@ -61,6 +100,17 @@ export async function saveChecklists(req: Request, res: Response, next: NextFunc
   try {
     const taskId = Number(req.params.id);
     const { items } = req.body;
+    const access = await ensureTaskAccess(req.user, taskId);
+
+    if (!access.ok || !access.task) {
+      res.status(access.status ?? 403).json({ error: access.error ?? "คุณไม่มีสิทธิ์แก้ไข checklist ของงานนี้" });
+      return;
+    }
+
+    if (!req.user) {
+      res.status(401).json({ error: "กรุณาเข้าสู่ระบบก่อน" });
+      return;
+    }
 
     const progress = await transaction(async (client) => {
       await client.query("DELETE FROM task_checklists WHERE task_id=$1", [taskId]);
@@ -87,6 +137,14 @@ export async function saveChecklists(req: Request, res: Response, next: NextFunc
       await client.query(
         "UPDATE tasks SET progress=$1, status=$2, updated_at=CURRENT_TIMESTAMP WHERE id=$3",
         [pct, newStatus, taskId]
+      );
+      await createAuditLog(
+        taskId,
+        req.user!.id,
+        "CHECKLIST_UPDATE",
+        { progress: access.task!.progress, status: access.task!.status },
+        { progress: pct, status: newStatus, items_count: Array.isArray(items) ? items.length : 0 },
+        client
       );
       return pct;
     });

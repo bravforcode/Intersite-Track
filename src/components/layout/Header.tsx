@@ -33,7 +33,7 @@ export function Header({
         {/* Hamburger — mobile only */}
         <button
           onClick={onMenuToggle}
-          className="md:hidden p-2 app-soft hover:text-[#1f1d16] dark:hover:text-white transition-colors shrink-0"
+          className="md:hidden p-2 app-soft hover:text-blue-600 dark:hover:text-sky-300 transition-colors shrink-0"
         >
           <Menu size={22} />
         </button>
@@ -46,7 +46,7 @@ export function Header({
             onClick={toggleTheme}
             whileHover={{ scale: 1.15, rotate: 15 }}
             whileTap={{ scale: 0.9 }}
-            className="p-2 app-soft hover:text-amber-500 dark:hover:text-amber-400 transition-colors"
+            className="p-2 app-soft hover:text-sky-500 dark:hover:text-sky-300 transition-colors"
           >
             {theme === "dark" ? <Sun size={20} /> : <Moon size={20} />}
           </motion.button>
@@ -58,7 +58,7 @@ export function Header({
           transition={{ duration: 0.6, ease: "easeInOut", repeat: unreadCount > 0 ? Infinity : 0, repeatDelay: 3 }}
           whileHover={{ scale: 1.15 }}
           whileTap={{ scale: 0.9 }}
-          className="relative p-2 app-soft hover:text-[#1f1d16] dark:hover:text-white transition-colors"
+          className="relative p-2 app-soft hover:text-blue-600 dark:hover:text-sky-300 transition-colors"
         >
           <Bell size={20} />
           {unreadCount > 0 && (
@@ -77,7 +77,7 @@ export function Header({
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={onCreateTask}
-            className="bg-[#5A5A40] text-white px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-medium flex items-center gap-1.5 shadow-md hover:shadow-lg transition-all"
+            className="bg-blue-600 text-white px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-medium flex items-center gap-1.5 shadow-md hover:bg-blue-700 hover:shadow-lg transition-all"
           >
             <Plus size={16} />
             <span className="hidden sm:inline">สร้างงานใหม่</span>
@@ -89,7 +89,7 @@ export function Header({
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={onCreateUser}
-            className="bg-[#5A5A40] text-white px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-medium flex items-center gap-1.5 shadow-md hover:shadow-lg transition-all"
+            className="bg-blue-600 text-white px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-medium flex items-center gap-1.5 shadow-md hover:bg-blue-700 hover:shadow-lg transition-all"
           >
             <Plus size={16} />
             <span className="hidden sm:inline">เพิ่มเจ้าหน้าที่</span>

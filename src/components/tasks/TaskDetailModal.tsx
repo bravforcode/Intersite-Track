@@ -1,11 +1,30 @@
-import React, { useState, useEffect } from "react";
-import { X, Edit3, Calendar, ClipboardList, ListChecks, Square, CheckSquare, ImagePlus } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import {
+  X,
+  Edit3,
+  Calendar,
+  ClipboardList,
+  ListChecks,
+  Square,
+  CheckSquare,
+  ImagePlus,
+  MessageSquare,
+  History,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { taskService } from "../../services/taskService";
 import { taskTypeService } from "../../services/taskTypeService";
 import { formatDate, formatDateTime } from "../../utils/formatters";
 import { priorityLabel, priorityColor, statusLabel, statusDot } from "../../utils/constants";
-import type { Task, User, TaskType, TaskUpdate, ChecklistItem } from "../../types";
+import type {
+  Task,
+  User,
+  TaskType,
+  TaskUpdate,
+  TaskComment,
+  TaskActivity,
+  ChecklistItem,
+} from "../../types";
 
 interface TaskDetailModalProps {
   task: Task;
@@ -15,20 +34,33 @@ interface TaskDetailModalProps {
   onEdit: (task: Task) => void;
 }
 
+const ACTIVITY_LABELS: Record<string, string> = {
+  CREATE: "สร้างงาน",
+  UPDATE: "แก้ไขรายละเอียด",
+  STATUS_CHANGE: "เปลี่ยนสถานะ",
+  PROGRESS_UPDATE: "อัปเดตความคืบหน้า",
+  CHECKLIST_UPDATE: "อัปเดต Checklist",
+  COMMENT: "เพิ่มความคิดเห็น",
+  DELETE: "ลบงาน",
+};
+
 export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskDetailModalProps) {
   const [updates, setUpdates] = useState<TaskUpdate[]>([]);
+  const [comments, setComments] = useState<TaskComment[]>([]);
+  const [activity, setActivity] = useState<TaskActivity[]>([]);
   const [newUpdate, setNewUpdate] = useState({ text: "", progress: task.progress });
+  const [newComment, setNewComment] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [commentSaving, setCommentSaving] = useState(false);
   const [taskChecklist, setTaskChecklist] = useState<ChecklistItem[]>([]);
   const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
 
-  useEffect(() => { 
-    fetchUpdates(); 
-    fetchChecklist(); 
-    taskTypeService.getTaskTypes().then(setTaskTypes).catch(() => {});
+  useEffect(() => {
+    void Promise.all([fetchUpdates(), fetchChecklist(), fetchComments(), fetchActivity()]);
+    void taskTypeService.getTaskTypes().then(setTaskTypes).catch(() => {});
   }, [task.id]);
 
   const fetchChecklist = async () => {
@@ -36,12 +68,34 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
       const rows = await taskService.getChecklists(task.id) as any[];
       const parents = rows.filter((r) => !r.parent_id);
       const items: ChecklistItem[] = parents.map((p) => ({
-        title: p.title, is_checked: !!p.is_checked, sort_order: p.sort_order,
+        title: p.title,
+        is_checked: !!p.is_checked,
+        sort_order: p.sort_order,
         children: rows.filter((c) => c.parent_id === p.id).map((c) => ({
-          title: c.title, is_checked: !!c.is_checked, sort_order: c.sort_order,
+          title: c.title,
+          is_checked: !!c.is_checked,
+          sort_order: c.sort_order,
         })),
       }));
       setTaskChecklist(items);
+    } catch {}
+  };
+
+  const fetchUpdates = async () => {
+    try {
+      setUpdates(await taskService.getUpdates(task.id));
+    } catch {}
+  };
+
+  const fetchComments = async () => {
+    try {
+      setComments(await taskService.getComments(task.id));
+    } catch {}
+  };
+
+  const fetchActivity = async () => {
+    try {
+      setActivity(await taskService.getActivity(task.id));
     } catch {}
   };
 
@@ -51,19 +105,16 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
   const checklistProgress = checkTotal > 0 ? Math.round((checkChecked / checkTotal) * 100) : task.progress;
 
   const toggleChecklistItem = async (parentIdx: number, childIdx?: number) => {
-    const c = [...taskChecklist];
+    const checklistCopy = [...taskChecklist];
     if (childIdx !== undefined) {
-      c[parentIdx].children[childIdx].is_checked = !c[parentIdx].children[childIdx].is_checked;
+      checklistCopy[parentIdx].children[childIdx].is_checked = !checklistCopy[parentIdx].children[childIdx].is_checked;
     } else {
-      c[parentIdx].is_checked = !c[parentIdx].is_checked;
+      checklistCopy[parentIdx].is_checked = !checklistCopy[parentIdx].is_checked;
     }
-    setTaskChecklist(c);
-    await taskService.saveChecklists(task.id, c);
-    onUpdate();
-  };
 
-  const fetchUpdates = async () => {
-    try { setUpdates(await taskService.getUpdates(task.id)); } catch {}
+    setTaskChecklist(checklistCopy);
+    await taskService.saveChecklists(task.id, checklistCopy);
+    await Promise.all([fetchActivity(), onUpdate()]);
   };
 
   const handleSubmitUpdate = async (e: React.FormEvent) => {
@@ -76,30 +127,96 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
         attachUrl = await taskService.uploadImage(imageFile);
         setUploading(false);
       }
+
       await taskService.addUpdate(task.id, {
-        user_id: user.id, update_text: newUpdate.text, progress: task.progress, attachment_url: attachUrl,
+        user_id: user.id,
+        update_text: newUpdate.text,
+        progress: newUpdate.progress,
+        attachment_url: attachUrl,
       });
+
       setNewUpdate({ text: "", progress: newUpdate.progress });
       setImageFile(null);
       setImagePreview(null);
-      fetchUpdates();
-      onUpdate();
-    } catch {} finally { setSaving(false); setUploading(false); }
+
+      await Promise.all([fetchUpdates(), fetchActivity(), onUpdate()]);
+    } catch {
+      // Error state is surfaced by the API layer and guarded by button states.
+    } finally {
+      setSaving(false);
+      setUploading(false);
+    }
+  };
+
+  const handleSubmitComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newComment.trim()) return;
+
+    setCommentSaving(true);
+    try {
+      await taskService.addComment(task.id, newComment.trim());
+      setNewComment("");
+      await Promise.all([fetchComments(), fetchActivity()]);
+    } catch {
+      // Error state is surfaced by the API layer and guarded by button states.
+    } finally {
+      setCommentSaving(false);
+    }
   };
 
   const handleStatusChange = async (newStatus: string) => {
     const progress = newStatus === "completed" ? 100 : task.progress;
     await taskService.updateStatus(task.id, newStatus, progress);
-    onUpdate();
+    await onUpdate();
     onClose();
   };
 
   const taskType = taskTypes.find((t) => t.id === task.task_type_id);
 
+  const renderActivityDetail = (entry: TaskActivity) => {
+    const nextData = entry.new_data ?? {};
+    const prevData = entry.old_data ?? {};
+
+    if (entry.action === "STATUS_CHANGE") {
+      const from = typeof prevData.status === "string" ? statusLabel[prevData.status as keyof typeof statusLabel] ?? prevData.status : "ไม่ระบุ";
+      const to = typeof nextData.status === "string" ? statusLabel[nextData.status as keyof typeof statusLabel] ?? nextData.status : "ไม่ระบุ";
+      return `${from} -> ${to}`;
+    }
+
+    if (entry.action === "PROGRESS_UPDATE") {
+      return `ความคืบหน้า ${typeof nextData.progress === "number" ? nextData.progress : 0}%`;
+    }
+
+    if (entry.action === "CHECKLIST_UPDATE") {
+      return `Checklist ล่าสุด ${typeof nextData.progress === "number" ? nextData.progress : 0}%`;
+    }
+
+    if (entry.action === "COMMENT") {
+      return typeof nextData.message === "string" ? nextData.message : "เพิ่มความคิดเห็นในงาน";
+    }
+
+    if (entry.action === "UPDATE") {
+      return "แก้ไขหัวข้อ รายละเอียด สถานะ หรือผู้รับผิดชอบ";
+    }
+
+    if (entry.action === "CREATE") {
+      return "สร้างงานและบันทึกข้อมูลตั้งต้น";
+    }
+
+    if (entry.action === "DELETE") {
+      return "ลบงานออกจากระบบ";
+    }
+
+    return "มีการเปลี่ยนแปลงข้อมูลของงาน";
+  };
+
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        className="app-surface rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="app-surface rounded-3xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden"
+      >
         <div className="p-6 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${task.status === "completed" ? "bg-emerald-100 text-emerald-600" : "bg-[#F5F5F0] text-[#5A5A40]"}`}>
@@ -120,9 +237,8 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left */}
-          <div className="lg:col-span-2 space-y-8">
+        <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 xl:grid-cols-[minmax(0,2fr)_360px] gap-8">
+          <div className="space-y-8">
             <section>
               <h4 className="text-xs font-bold uppercase tracking-wider app-soft mb-3">รายละเอียด</h4>
               <p className="app-muted leading-relaxed">{task.description || "ไม่มีรายละเอียด"}</p>
@@ -153,23 +269,15 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
                       </div>
                     );
                   })}
-                  {(() => {
-                    const all = taskChecklist.flatMap((i) => [i, ...i.children]);
-                    const total = all.length;
-                    const checked = all.filter((i) => i.is_checked).length;
-                    const pct = total > 0 ? Math.round((checked / total) * 100) : 0;
-                    return (
-                        <div className="pt-3 border-t border-gray-200">
-                          <div className="flex items-center justify-between text-xs mb-1">
-                          <span className="app-soft font-medium">ความคืบหน้า Checklist</span>
-                          <span className="font-bold app-heading">{checked}/{total} ({pct}%)</span>
-                          </div>
-                        <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-500 rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
-                        </div>
-                      </div>
-                    );
-                  })()}
+                  <div className="pt-3 border-t border-gray-200">
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="app-soft font-medium">ความคืบหน้า Checklist</span>
+                      <span className="font-bold app-heading">{checkChecked}/{checkTotal} ({checklistProgress}%)</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div className="h-full bg-emerald-500 rounded-full transition-all duration-300" style={{ width: `${checklistProgress}%` }} />
+                    </div>
+                  </div>
                 </div>
               </section>
             )}
@@ -177,7 +285,7 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
             {user.role === "admin" && task.status !== "completed" && task.status !== "cancelled" && (
               <section>
                 <h4 className="text-xs font-bold uppercase tracking-wider app-soft mb-3">เปลี่ยนสถานะ</h4>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   {task.status !== "in_progress" && (
                     <button onClick={() => handleStatusChange("in_progress")} className="px-4 py-2 bg-amber-100 text-amber-700 rounded-xl text-sm font-medium hover:bg-amber-200">กำลังดำเนินการ</button>
                   )}
@@ -190,25 +298,42 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
             <section>
               <h4 className="text-xs font-bold uppercase tracking-wider app-soft mb-4">อัปเดตความคืบหน้า</h4>
               <form onSubmit={handleSubmitUpdate} className="app-surface-subtle p-4 rounded-2xl mb-6">
-                <textarea className="w-full px-4 py-2 rounded-xl h-20 resize-none text-sm mb-3 app-field"
-                  placeholder="บันทึกความคืบหน้า..." value={newUpdate.text}
-                  onChange={(e) => setNewUpdate({ ...newUpdate, text: e.target.value })} required />
+                <textarea
+                  className="w-full px-4 py-2 rounded-xl h-20 resize-none text-sm mb-3 app-field"
+                  placeholder="บันทึกความคืบหน้า..."
+                  value={newUpdate.text}
+                  onChange={(e) => setNewUpdate({ ...newUpdate, text: e.target.value })}
+                  required
+                />
                 <div className="mb-3">
                   <label className="flex items-center gap-2 cursor-pointer w-fit px-4 py-2 bg-white rounded-xl border border-gray-200 hover:border-[#5A5A40] transition-colors text-sm app-muted">
                     <ImagePlus size={16} />
                     <span>{imageFile ? imageFile.name : "แนบรูปภาพ (ถ้ามี)"}</span>
-                    <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-                      const f = e.target.files?.[0] || null;
-                      setImageFile(f);
-                      if (f) { const r = new FileReader(); r.onload = (ev) => setImagePreview(ev.target?.result as string); r.readAsDataURL(f); }
-                      else setImagePreview(null);
-                    }} />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        setImageFile(file);
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (event) => setImagePreview(event.target?.result as string);
+                          reader.readAsDataURL(file);
+                        } else {
+                          setImagePreview(null);
+                        }
+                      }}
+                    />
                   </label>
                   {imagePreview && (
                     <div className="relative mt-2 inline-block">
                       <img src={imagePreview} alt="preview" className="max-h-32 rounded-xl border border-gray-200" />
-                      <button type="button" onClick={() => { setImageFile(null); setImagePreview(null); }}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600">
+                      <button
+                        type="button"
+                        onClick={() => { setImageFile(null); setImagePreview(null); }}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                      >
                         <X size={12} />
                       </button>
                     </div>
@@ -233,11 +358,15 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
                         <p className="text-[10px] app-soft">{formatDateTime(update.created_at)}</p>
                       </div>
                       <div className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm">
-                        <p className="text-sm app-muted">{update.update_text}</p>
+                        <p className="text-sm app-muted whitespace-pre-wrap">{update.update_text}</p>
                         {update.attachment_url && (
                           <div className="mt-2">
-                            <img src={update.attachment_url} alt="แนบรูปภาพ" className="max-h-48 rounded-xl border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
-                              onClick={() => window.open(update.attachment_url, "_blank")} />
+                            <img
+                              src={update.attachment_url}
+                              alt="แนบรูปภาพ"
+                              className="max-h-48 rounded-xl border border-gray-200 cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => window.open(update.attachment_url, "_blank")}
+                            />
                           </div>
                         )}
                       </div>
@@ -247,9 +376,41 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
                 {updates.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">ยังไม่มีการอัปเดต</p>}
               </div>
             </section>
+
+            <section>
+              <h4 className="text-xs font-bold uppercase tracking-wider app-soft mb-4 flex items-center gap-1.5">
+                <MessageSquare size={14} /> ความคิดเห็นในงาน
+              </h4>
+              <form onSubmit={handleSubmitComment} className="app-surface-subtle p-4 rounded-2xl mb-6">
+                <textarea
+                  className="w-full px-4 py-2 rounded-xl h-20 resize-none text-sm mb-3 app-field"
+                  placeholder="เขียนความคิดเห็นหรือโน้ตสำหรับทีม..."
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  required
+                />
+                <div className="flex items-center justify-end">
+                  <button disabled={commentSaving} className="bg-[#5A5A40] text-white px-6 py-2 rounded-xl text-sm font-bold shadow-md hover:bg-[#4A4A30] disabled:opacity-50">
+                    {commentSaving ? "กำลังส่ง..." : "ส่งความคิดเห็น"}
+                  </button>
+                </div>
+              </form>
+
+              <div className="space-y-4">
+                {comments.map((comment) => (
+                  <div key={comment.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <p className="text-sm font-bold app-heading">{comment.user_name || "ผู้ใช้ในระบบ"}</p>
+                      <p className="text-[10px] app-soft">{formatDateTime(comment.created_at)}</p>
+                    </div>
+                    <p className="text-sm app-muted whitespace-pre-wrap">{comment.message}</p>
+                  </div>
+                ))}
+                {comments.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">ยังไม่มีความคิดเห็นในงานนี้</p>}
+              </div>
+            </section>
           </div>
 
-          {/* Right Info Panel */}
           <div className="space-y-6">
             <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 space-y-5">
               <div>
@@ -279,10 +440,10 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
               <div>
                 <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">ผู้รับผิดชอบ</h4>
                 <div className="space-y-2">
-                  {task.assignments.map((a) => (
-                    <div key={a.id} className="flex items-center gap-2 bg-white p-2 rounded-xl border border-gray-200">
-                      <div className="w-6 h-6 rounded-full bg-[#F5F5F0] flex items-center justify-center text-[10px] font-bold text-[#5A5A40]">{a.first_name[0]}{a.last_name[0]}</div>
-                      <span className="text-xs font-medium">{a.first_name} {a.last_name}</span>
+                  {task.assignments.map((assignee) => (
+                    <div key={assignee.id} className="flex items-center gap-2 bg-white p-2 rounded-xl border border-gray-200">
+                      <div className="w-6 h-6 rounded-full bg-[#F5F5F0] flex items-center justify-center text-[10px] font-bold text-[#5A5A40]">{assignee.first_name[0]}{assignee.last_name[0]}</div>
+                      <span className="text-xs font-medium">{assignee.first_name} {assignee.last_name}</span>
                     </div>
                   ))}
                   {task.assignments.length === 0 && <p className="text-xs text-gray-400">ยังไม่ได้มอบหมาย</p>}
@@ -298,6 +459,27 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
               </div>
               <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden">
                 <motion.div initial={{ width: 0 }} animate={{ width: `${checklistProgress}%` }} className="h-full bg-white rounded-full" />
+              </div>
+            </div>
+
+            <div className="app-surface-subtle rounded-3xl p-5 border border-gray-100">
+              <h4 className="text-xs font-bold uppercase tracking-wider app-soft mb-4 flex items-center gap-1.5">
+                <History size={14} /> ประวัติการเปลี่ยนแปลง
+              </h4>
+              <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
+                {activity.map((entry) => (
+                  <div key={entry.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-[#F5F5F0] text-[#5A5A40]">
+                        {ACTIVITY_LABELS[entry.action] || entry.action}
+                      </span>
+                      <span className="text-[10px] app-soft">{formatDateTime(entry.created_at)}</span>
+                    </div>
+                    <p className="text-sm font-medium app-heading mb-1">{entry.user_name || "System"}</p>
+                    <p className="text-sm app-muted whitespace-pre-wrap">{renderActivityDetail(entry)}</p>
+                  </div>
+                ))}
+                {activity.length === 0 && <p className="text-center text-gray-400 py-4 text-sm">ยังไม่มีประวัติการเปลี่ยนแปลง</p>}
               </div>
             </div>
           </div>

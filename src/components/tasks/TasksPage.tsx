@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { ClipboardList, LayoutGrid, List } from "lucide-react";
 import { motion } from "motion/react";
 import { TaskCard } from "./TaskCard";
@@ -7,9 +7,7 @@ import { TaskFilters, type FilterValues } from "./TaskFilters";
 import { TasksSkeleton } from "../common/Skeleton";
 import { features } from "../../config/features";
 import { taskService } from "../../services/taskService";
-import { userService } from "../../services/userService";
-import { taskTypeService } from "../../services/taskTypeService";
-import type { Task, User, TaskType } from "../../types";
+import type { Task, User } from "../../types";
 
 interface TasksPageProps {
   currentUser: User;
@@ -22,7 +20,6 @@ export function TasksPage({ currentUser, onViewTask, onEditTask, refreshTrigger 
   const [loading, setLoading] = useState(true);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
   const [viewMode, setViewMode] = useState<"list" | "board">(() => {
     if (typeof window === "undefined") return "list";
     return localStorage.getItem("tasks-view-mode") === "board" ? "board" : "list";
@@ -35,14 +32,11 @@ export function TasksPage({ currentUser, onViewTask, onEditTask, refreshTrigger 
   const fetchAll = async () => {
     try {
       setLoading(true);
-      const [t, u, tt] = await Promise.all([
-        taskService.getTasks(),
-        userService.getUsers(),
-        taskTypeService.getTaskTypes()
-      ]);
-      setTasks(t);
-      setUsers(u);
-      setTaskTypes(tt);
+      const workspace = await taskService.getWorkspace(
+        currentUser.role === "staff" ? { user_id: String(currentUser.id) } : undefined
+      );
+      setTasks(workspace.tasks);
+      setUsers(workspace.users);
     } catch (error) {
       console.error("Failed to load tasks workspace data", error);
     } finally {
@@ -51,8 +45,8 @@ export function TasksPage({ currentUser, onViewTask, onEditTask, refreshTrigger 
   };
 
   useEffect(() => {
-    fetchAll();
-  }, [refreshTrigger]);
+    void fetchAll();
+  }, [currentUser.id, currentUser.role, refreshTrigger]);
 
   useEffect(() => {
     localStorage.setItem("tasks-view-mode", viewMode);
@@ -95,7 +89,7 @@ export function TasksPage({ currentUser, onViewTask, onEditTask, refreshTrigger 
     {
       label: "งานที่มองเห็น",
       value: filtered.length,
-      tone: "text-[#5A5A40]",
+      tone: "text-blue-700",
     },
     {
       label: "กำลังดำเนินการ",
@@ -136,14 +130,14 @@ export function TasksPage({ currentUser, onViewTask, onEditTask, refreshTrigger 
           <div className="flex items-center app-surface rounded-lg p-1">
             <button
               onClick={() => setViewMode("list")}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-[#5A5A40] text-white shadow" : "app-soft hover:text-[#1f1d16] dark:hover:text-gray-100"}`}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-blue-600 text-white shadow" : "app-soft hover:text-blue-700 dark:hover:text-gray-100"}`}
               title="แบบรายการ"
             >
               <List size={16} />
             </button>
             <button
               onClick={() => setViewMode("board")}
-              className={`p-1.5 rounded-md transition-colors ${viewMode === "board" ? "bg-[#5A5A40] text-white shadow" : "app-soft hover:text-[#1f1d16] dark:hover:text-gray-100"}`}
+              className={`p-1.5 rounded-md transition-colors ${viewMode === "board" ? "bg-blue-600 text-white shadow" : "app-soft hover:text-blue-700 dark:hover:text-gray-100"}`}
               title="แบบบอร์ด"
             >
               <LayoutGrid size={16} />

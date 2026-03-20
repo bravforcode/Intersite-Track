@@ -1,3 +1,5 @@
+import type { User } from "./user";
+
 export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 
@@ -36,6 +38,27 @@ export interface TaskUpdate {
   last_name: string;
 }
 
+export interface TaskComment {
+  id: number;
+  task_id: number;
+  user_id: number;
+  message: string;
+  created_at: string;
+  user_name?: string;
+}
+
+export interface TaskActivity {
+  id: number;
+  task_id: number;
+  user_id: number | null;
+  action: string;
+  old_data: Record<string, unknown> | null;
+  new_data: Record<string, unknown> | null;
+  created_at: string;
+  user_name?: string;
+  type: "audit";
+}
+
 export interface ChecklistChild {
   id?: number;
   title: string;
@@ -54,6 +77,12 @@ export interface ChecklistItem {
 export interface TaskType {
   id: number;
   name: string;
+}
+
+export interface TaskWorkspace {
+  tasks: Task[];
+  users: User[];
+  taskTypes: TaskType[];
 }
 
 export interface CreateTaskDTO {

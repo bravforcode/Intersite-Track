@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { Search, Eye, Edit3, Trash2, X } from "lucide-react";
+import { Search, Eye, Edit3, Trash2, X, KeyRound } from "lucide-react";
 import { motion } from "motion/react";
 import { TasksSkeleton } from "../common/Skeleton";
 import api from "../../services/api";
+import { authService } from "../../services/authService";
 import { userService } from "../../services/userService";
 import { formatDate } from "../../utils/formatters";
 import { statusColor, statusLabel, priorityColor, priorityLabel } from "../../utils/constants";
@@ -22,6 +23,10 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
   const [search, setSearch] = useState("");
   const [staffTasks, setStaffTasks] = useState<Record<number, Task[]>>({});
   const [viewingStaff, setViewingStaff] = useState<User | null>(null);
+  const [passwordTarget, setPasswordTarget] = useState<User | null>(null);
+  const [passwordForm, setPasswordForm] = useState({ newPassword: "", confirmPassword: "" });
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   const fetchAll = async () => {
     try {
@@ -59,6 +64,40 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
     setStaffTasks((prev) => ({ ...prev, [userId]: tasks }));
   };
 
+  const openPasswordReset = (target: User) => {
+    setPasswordTarget(target);
+    setPasswordForm({ newPassword: "", confirmPassword: "" });
+    setPasswordMessage(null);
+  };
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!passwordTarget) return;
+
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordMessage({ ok: false, text: "รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร" });
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordMessage({ ok: false, text: "รหัสผ่านยืนยันไม่ตรงกัน" });
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      await authService.adminResetPassword(passwordTarget.id, passwordForm.newPassword);
+      setPasswordMessage({ ok: true, text: `รีเซ็ตรหัสผ่านของ ${passwordTarget.first_name} สำเร็จแล้ว` });
+      setPasswordForm({ newPassword: "", confirmPassword: "" });
+      setPasswordTarget(null);
+    } catch (error: any) {
+      setPasswordMessage({ ok: false, text: error?.message || "ไม่สามารถรีเซ็ตรหัสผ่านได้" });
+    } finally {
+      setPasswordSaving(false);
+    }
+  };
+
   return (
     <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="space-y-6">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
@@ -88,6 +127,12 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
             value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
       </div>
+
+      {passwordMessage && !passwordTarget && (
+        <div className={`rounded-2xl px-4 py-3 text-sm border ${passwordMessage.ok ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-red-50 text-red-600 border-red-100"}`}>
+          {passwordMessage.text}
+        </div>
+      )}
 
       <div className="app-surface rounded-3xl overflow-hidden">
         <table className="w-full text-left">
@@ -127,6 +172,9 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
                   <div className="flex items-center justify-end gap-2">
                     <button onClick={() => { setViewingStaff(u); loadStaffTasks(u.id); }} className="p-2 app-soft hover:text-blue-500 transition-colors" title="ดูประวัติงาน">
                       <Eye size={16} />
+                    </button>
+                    <button onClick={() => openPasswordReset(u)} className="p-2 app-soft hover:text-amber-600 transition-colors" title="รีเซ็ตรหัสผ่าน">
+                      <KeyRound size={16} />
                     </button>
                     <button onClick={() => onEdit(u)} className="p-2 app-soft hover:text-[#5A5A40] transition-colors" title="แก้ไข">
                       <Edit3 size={16} />
@@ -183,6 +231,63 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
                 )}
               </div>
             </div>
+          </motion.div>
+        </div>
+      )}
+
+      {passwordTarget && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={() => setPasswordTarget(null)}>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={(e) => e.stopPropagation()}
+            className="app-surface rounded-3xl shadow-2xl w-full max-w-md overflow-hidden"
+          >
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-serif font-bold app-heading">รีเซ็ตรหัสผ่าน</h3>
+                <p className="text-sm app-soft">{passwordTarget.first_name} {passwordTarget.last_name}</p>
+              </div>
+              <button onClick={() => setPasswordTarget(null)} className="app-soft hover:text-[#1f1d16]"><X size={24} /></button>
+            </div>
+
+            <form onSubmit={handlePasswordReset} className="p-6 space-y-4">
+              {passwordMessage && (
+                <div className={`rounded-2xl px-4 py-3 text-sm border ${passwordMessage.ok ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-red-50 text-red-600 border-red-100"}`}>
+                  {passwordMessage.text}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider app-soft mb-1">รหัสผ่านใหม่</label>
+                <input
+                  type="password"
+                  className="w-full px-4 py-2 rounded-xl text-sm app-field"
+                  value={passwordForm.newPassword}
+                  onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider app-soft mb-1">ยืนยันรหัสผ่านใหม่</label>
+                <input
+                  type="password"
+                  className="w-full px-4 py-2 rounded-xl text-sm app-field"
+                  value={passwordForm.confirmPassword}
+                  onChange={(e) => setPasswordForm((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                  required
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setPasswordTarget(null)} className="px-5 py-2 rounded-xl text-sm font-bold text-gray-500 hover:bg-gray-100">
+                  ปิด
+                </button>
+                <button type="submit" disabled={passwordSaving} className="px-5 py-2 bg-[#5A5A40] text-white rounded-xl text-sm font-bold hover:bg-[#4A4A30] disabled:opacity-50">
+                  {passwordSaving ? "กำลังบันทึก..." : "ยืนยันการรีเซ็ต"}
+                </button>
+              </div>
+            </form>
           </motion.div>
         </div>
       )}

@@ -103,7 +103,19 @@ export async function deleteUserHandler(req: Request, res: Response, next: NextF
 /** GET /api/users/:id/tasks */
 export async function getUserTasksHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const tasks = await getUserTasks(Number(req.params.id));
+    const requestedUserId = Number(req.params.id);
+
+    if (!req.user) {
+      res.status(401).json({ error: "กรุณาเข้าสู่ระบบก่อน" });
+      return;
+    }
+
+    if (req.user.role !== "admin" && req.user.id !== requestedUserId) {
+      res.status(403).json({ error: "คุณไม่มีสิทธิ์เข้าถึงข้อมูลงานของผู้ใช้นี้" });
+      return;
+    }
+
+    const tasks = await getUserTasks(requestedUserId);
     res.json(tasks);
   } catch (err) { next(err); }
 }

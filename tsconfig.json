@@ -22,5 +22,10 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": [
+    "TaskAm-main2",
+    "dist",
+    "node_modules"
+  ]
 }

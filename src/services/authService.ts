@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import api from "./api";
+import api, { clearApiAuthState, setCachedAccessToken } from "./api";
 import type { User } from "../types";
 
 export interface LoginCredentials {
@@ -31,14 +31,25 @@ function getAuthErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-async function fetchAndStoreProfile(profileLoadErrorMessage: string): Promise<User> {
+async function fetchAndStoreProfile(
+  profileLoadErrorMessage: string,
+  accessToken?: string
+): Promise<User> {
   try {
+    if (accessToken) {
+      setCachedAccessToken(accessToken);
+    }
+
     const profile = await api.post<User>("/api/auth/profile", {});
-    const { data } = await supabase.auth.getSession();
-    const user = { ...profile, token: data.session?.access_token ?? "" };
+    const token = accessToken ?? (await supabase.auth.getSession()).data.session?.access_token ?? "";
+    const user = { ...profile, token };
     localStorage.setItem("user", JSON.stringify(user));
+    setCachedAccessToken(token || null);
     return user;
   } catch (error) {
+    if (accessToken) {
+      clearApiAuthState();
+    }
     throw new Error(getAuthErrorMessage(error, profileLoadErrorMessage));
   }
 }
@@ -62,7 +73,10 @@ export const authService = {
 
     if (!data.session) throw new Error("ไม่สามารถสร้าง session ได้");
 
-    return fetchAndStoreProfile("สร้างบัญชีสำเร็จแล้ว แต่ยังโหลดข้อมูลผู้ใช้ไม่ได้ กรุณาเข้าสู่ระบบอีกครั้ง");
+    return fetchAndStoreProfile(
+      "สร้างบัญชีสำเร็จแล้ว แต่ยังโหลดข้อมูลผู้ใช้ไม่ได้ กรุณาเข้าสู่ระบบอีกครั้ง",
+      data.session.access_token
+    );
   },
 
   /**
@@ -77,12 +91,20 @@ export const authService = {
 
     if (!data.session) throw new Error("ไม่สามารถสร้าง session ได้");
 
-    return fetchAndStoreProfile("เข้าสู่ระบบสำเร็จแล้ว แต่ยังโหลดข้อมูลผู้ใช้ไม่ได้ กรุณาลองใหม่อีกครั้ง");
+    return fetchAndStoreProfile(
+      "เข้าสู่ระบบสำเร็จแล้ว แต่ยังโหลดข้อมูลผู้ใช้ไม่ได้ กรุณาลองใหม่อีกครั้ง",
+      data.session.access_token
+    );
   },
 
   async signOut(): Promise<void> {
-    await supabase.auth.signOut();
+    clearApiAuthState();
     localStorage.removeItem("user");
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+    } catch {
+      // UI state is already cleared locally; ignore remote sign-out failures.
+    }
   },
 
   async getToken(): Promise<string | null> {
@@ -118,6 +140,10 @@ export const authService = {
 
   /** Change password via backend Supabase Admin API */
   async changePassword(userId: number, _oldPassword: string, newPassword: string): Promise<void> {
+    await api.put(`/api/users/${userId}/password`, { new_password: newPassword });
+  },
+
+  async adminResetPassword(userId: number, newPassword: string): Promise<void> {
     await api.put(`/api/users/${userId}/password`, { new_password: newPassword });
   },
 };

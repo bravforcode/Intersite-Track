@@ -4,6 +4,7 @@ export interface StaffReportRow {
   id: number;
   first_name: string;
   last_name: string;
+  role: "admin" | "staff";
   position: string;
   department_name: string;
   total_tasks: number;
@@ -14,7 +15,7 @@ export interface StaffReportRow {
 
 export async function getStaffReport(): Promise<StaffReportRow[]> {
   const result = await query<StaffReportRow>(`
-    SELECT u.id, u.first_name, u.last_name, u.position, d.name as department_name,
+    SELECT u.id, u.first_name, u.last_name, u.role, u.position, d.name as department_name,
       COUNT(ta.task_id)::int as total_tasks,
       COUNT(ta.task_id) FILTER (WHERE t.status = 'completed')::int as completed,
       COUNT(ta.task_id) FILTER (WHERE t.status = 'in_progress')::int as in_progress,
@@ -23,8 +24,7 @@ export async function getStaffReport(): Promise<StaffReportRow[]> {
     LEFT JOIN task_assignments ta ON u.id = ta.user_id
     LEFT JOIN tasks t ON ta.task_id = t.id
     LEFT JOIN departments d ON u.department_id = d.id
-    WHERE u.role = 'staff'
-    GROUP BY u.id, u.first_name, u.last_name, u.position, d.name
+    GROUP BY u.id, u.first_name, u.last_name, u.role, u.position, d.name
     ORDER BY total_tasks DESC
   `);
   return result.rows;
@@ -35,16 +35,14 @@ export async function getTasksByDateRange(
   end: string
 ): Promise<Record<string, unknown>[]> {
   const result = await query<Record<string, unknown>>(`
-    SELECT t.due_date::text as date,
-      COUNT(*) FILTER (WHERE t.status = 'completed')::int as completed,
-      COUNT(*) FILTER (WHERE t.status = 'in_progress')::int as in_progress,
-      COUNT(*) FILTER (WHERE t.status = 'pending')::int as pending,
-      COUNT(*) FILTER (WHERE t.status = 'cancelled')::int as cancelled,
-      COUNT(*)::int as total
+    SELECT
+      t.due_date::text as date,
+      t.status,
+      COUNT(*)::int as count
     FROM tasks t
     WHERE t.due_date BETWEEN $1 AND $2
-    GROUP BY t.due_date
-    ORDER BY t.due_date ASC
+    GROUP BY t.due_date, t.status
+    ORDER BY t.due_date ASC, t.status ASC
   `, [start, end]);
   return result.rows;
 }

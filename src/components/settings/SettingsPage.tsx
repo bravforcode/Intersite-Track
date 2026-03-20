@@ -204,7 +204,7 @@ export function SettingsPage({ refreshTrigger = 0 }: SettingsPageProps) {
         </div>
       )}
 
-      {tab === "trello" && <TrelloSettings systemUsers={users.filter((u) => u.role === "staff")} />}
+      {tab === "trello" && <TrelloSettings systemUsers={users} />}
 
       {tab === "trelloLogs" && (
         <div className="app-surface rounded-3xl p-6">

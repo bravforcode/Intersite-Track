@@ -54,7 +54,7 @@ export function TaskFilters({ users, onFilterChange }: TaskFiltersProps) {
         <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${showFilters ? "bg-[#5A5A40] text-white" : "app-surface-subtle app-muted hover:bg-[var(--app-surface-hover)]"}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${showFilters ? "bg-blue-600 text-white" : "app-surface-subtle app-muted hover:bg-[var(--app-surface-hover)]"}`}
           >
             <Filter size={18} /> ตัวกรอง{hasActiveFilters ? ` (${activeFilterCount})` : ""}
           </button>
@@ -105,7 +105,7 @@ export function TaskFilters({ users, onFilterChange }: TaskFiltersProps) {
               onChange={(e) => update({ assignee: e.target.value })}
             >
               <option value="">ทั้งหมด</option>
-              {users.filter((u) => u.role === "staff").map((u) => (
+              {users.map((u) => (
                 <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
               ))}
             </select>
