@@ -1,4 +1,5 @@
-import { query } from "../connection.js";
+import { supabaseAdmin } from "../../config/supabase.js";
+import { findAllTasks } from "./task.queries.js";
 
 export interface User {
   id: number;
@@ -42,123 +43,206 @@ export interface UpdateOwnProfileDTO {
   position?: string | null;
 }
 
-const USER_SELECT = `
-  SELECT
-    u.id,
-    u.username,
-    u.email,
-    u.auth_id,
-    u.first_name,
-    u.last_name,
-    u.role,
-    u.department_id,
-    u.position,
-    u.created_at,
-    d.name AS department_name
-  FROM users u
-  LEFT JOIN departments d ON u.department_id = d.id
-`;
+interface UserRow {
+  id: number;
+  username: string;
+  email: string | null;
+  auth_id: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  role: "admin" | "staff";
+  department_id: number | null;
+  position: string | null;
+  created_at: string;
+  departments?:
+    | { name: string | null }
+    | Array<{ name: string | null }>
+    | null;
+}
+
+function pickOne<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+function mapUser(row: UserRow): User {
+  const department = pickOne(row.departments);
+
+  return {
+    id: row.id,
+    username: row.username,
+    email: row.email,
+    auth_id: row.auth_id,
+    first_name: row.first_name ?? "",
+    last_name: row.last_name ?? "",
+    role: row.role,
+    department_id: row.department_id,
+    position: row.position,
+    created_at: row.created_at,
+    department_name: department?.name ?? undefined,
+  };
+}
+
+async function fetchUsersBase() {
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select(`
+      id,
+      username,
+      email,
+      auth_id,
+      first_name,
+      last_name,
+      role,
+      department_id,
+      position,
+      created_at,
+      departments:departments!users_department_id_fkey(name)
+    `)
+    .order("id", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as unknown as UserRow[];
+}
 
 export async function findUserByUsername(username: string): Promise<User | null> {
-  const result = await query<User>(`${USER_SELECT} WHERE u.username = $1`, [username]);
-  return result.rows[0] ?? null;
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select(`
+      id,
+      username,
+      email,
+      auth_id,
+      first_name,
+      last_name,
+      role,
+      department_id,
+      position,
+      created_at,
+      departments:departments!users_department_id_fkey(name)
+    `)
+    .eq("username", username)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? mapUser(data as unknown as UserRow) : null;
 }
 
 export async function findUserById(id: number): Promise<User | null> {
-  const result = await query<User>(`${USER_SELECT} WHERE u.id = $1`, [id]);
-  return result.rows[0] ?? null;
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select(`
+      id,
+      username,
+      email,
+      auth_id,
+      first_name,
+      last_name,
+      role,
+      department_id,
+      position,
+      created_at,
+      departments:departments!users_department_id_fkey(name)
+    `)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? mapUser(data as unknown as UserRow) : null;
 }
 
 export async function findAllUsers(): Promise<User[]> {
-  const result = await query<User>(`${USER_SELECT} ORDER BY u.id`);
-  return result.rows;
+  const rows = await fetchUsersBase();
+  return rows.map(mapUser);
 }
 
 export async function createUser(dto: CreateUserDTO): Promise<number> {
-  const result = await query<{ id: number }>(
-    `INSERT INTO users (username, email, auth_id, first_name, last_name, role, department_id, position)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-     RETURNING id`,
-    [
-      dto.username,
-      dto.email,
-      dto.auth_id,
-      dto.first_name,
-      dto.last_name,
-      dto.role ?? "staff",
-      dto.department_id ?? null,
-      dto.position ?? null,
-    ]
-  );
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .insert({
+      username: dto.username,
+      email: dto.email,
+      auth_id: dto.auth_id,
+      first_name: dto.first_name,
+      last_name: dto.last_name,
+      role: dto.role ?? "staff",
+      department_id: dto.department_id ?? null,
+      position: dto.position ?? null,
+    })
+    .select("id")
+    .single();
 
-  return result.rows[0].id;
+  if (error || !data) throw error ?? new Error("Failed to create user");
+  return data.id;
 }
 
 export async function findUserByAuthId(authId: string): Promise<User | null> {
-  const result = await query<User>(`${USER_SELECT} WHERE u.auth_id = $1`, [authId]);
-  return result.rows[0] ?? null;
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select(`
+      id,
+      username,
+      email,
+      auth_id,
+      first_name,
+      last_name,
+      role,
+      department_id,
+      position,
+      created_at,
+      departments:departments!users_department_id_fkey(name)
+    `)
+    .eq("auth_id", authId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? mapUser(data as unknown as UserRow) : null;
 }
 
 export async function updateUser(id: number, dto: UpdateUserDTO): Promise<void> {
-  await query(
-    `UPDATE users
-     SET username = $1,
-         first_name = $2,
-         last_name = $3,
-         role = $4,
-         department_id = $5,
-         position = $6
-     WHERE id = $7`,
-    [
-      dto.username,
-      dto.first_name,
-      dto.last_name,
-      dto.role,
-      dto.department_id ?? null,
-      dto.position ?? null,
-      id,
-    ]
-  );
+  const payload: Record<string, unknown> = {};
+
+  if (dto.username !== undefined) payload.username = dto.username;
+  if (dto.first_name !== undefined) payload.first_name = dto.first_name;
+  if (dto.last_name !== undefined) payload.last_name = dto.last_name;
+  if (dto.role !== undefined) payload.role = dto.role;
+  if (dto.department_id !== undefined) payload.department_id = dto.department_id ?? null;
+  if (dto.position !== undefined) payload.position = dto.position ?? null;
+
+  const { error } = await supabaseAdmin
+    .from("users")
+    .update(payload)
+    .eq("id", id);
+
+  if (error) throw error;
 }
 
 export async function updateOwnProfile(id: number, dto: UpdateOwnProfileDTO): Promise<void> {
-  await query(
-    `UPDATE users
-     SET username = $1,
-         first_name = $2,
-         last_name = $3,
-         position = $4
-     WHERE id = $5`,
-    [
-      dto.username,
-      dto.first_name,
-      dto.last_name,
-      dto.position ?? null,
-      id,
-    ]
-  );
+  const { error } = await supabaseAdmin
+    .from("users")
+    .update({
+      username: dto.username,
+      first_name: dto.first_name,
+      last_name: dto.last_name,
+      position: dto.position ?? null,
+    })
+    .eq("id", id);
+
+  if (error) throw error;
 }
 
 export async function deleteUser(id: number): Promise<void> {
-  await query("DELETE FROM users WHERE id = $1", [id]);
+  const { error } = await supabaseAdmin
+    .from("users")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
 }
 
 export async function getUserTasks(userId: number): Promise<Record<string, unknown>[]> {
-  const result = await query<Record<string, unknown>>(
-    `SELECT
-       t.*,
-       creator.first_name || ' ' || creator.last_name AS creator_name,
-       tt.name AS task_type_name
-     FROM task_assignments ta
-     JOIN tasks t ON ta.task_id = t.id
-     JOIN users creator ON t.created_by = creator.id
-     LEFT JOIN task_types tt ON t.task_type_id = tt.id
-     WHERE ta.user_id = $1
-     ORDER BY t.created_at DESC`,
-    [userId]
-  );
-
-  return result.rows;
+  const tasks = await findAllTasks({ userId });
+  return tasks as unknown as Record<string, unknown>[];
 }
 
 export async function updatePassword(): Promise<void> {

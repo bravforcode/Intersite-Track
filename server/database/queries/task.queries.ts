@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import { query, transaction } from "../connection.js";
+import { supabaseAdmin } from "../../config/supabase.js";
 
 export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
@@ -21,10 +21,6 @@ export interface TaskAssignment {
   id: number;
   first_name: string;
   last_name: string;
-}
-
-interface TaskAssignmentRow extends TaskAssignment {
-  task_id: number;
 }
 
 export interface Task {
@@ -49,7 +45,7 @@ export interface CreateTaskDTO {
   description?: string;
   task_type_id?: number | null;
   priority?: TaskPriority;
-  due_date?: string;
+  due_date?: string | null;
   created_by: number;
 }
 
@@ -59,53 +55,90 @@ export interface UpdateTaskDTO {
   task_type_id?: number | null;
   priority?: TaskPriority;
   status?: TaskStatus;
-  due_date?: string;
+  due_date?: string | null;
 }
 
-async function hydrateAssignments(tasks: Task[]): Promise<Task[]> {
-  if (tasks.length === 0) return tasks;
-
-  const taskIds = tasks.map(task => task.id);
-  const assignmentResult = await query<TaskAssignmentRow>(
-    `SELECT ta.task_id, u.id, u.first_name, u.last_name
-     FROM task_assignments ta
-     JOIN users u ON ta.user_id = u.id
-     WHERE ta.task_id = ANY($1::int[])
-     ORDER BY ta.task_id, u.first_name, u.last_name`,
-    [taskIds]
-  );
-
-  const assignmentMap = new Map<number, TaskAssignment[]>();
-
-  for (const row of assignmentResult.rows) {
-    const current = assignmentMap.get(row.task_id) ?? [];
-    current.push({
-      id: row.id,
-      first_name: row.first_name,
-      last_name: row.last_name,
-    });
-    assignmentMap.set(row.task_id, current);
-  }
-
-  return tasks.map(task => ({
-    ...task,
-    assignments: assignmentMap.get(task.id) ?? [],
-  }));
+interface TaskRow {
+  id: number;
+  title: string;
+  description: string | null;
+  task_type_id: number | null;
+  priority: TaskPriority;
+  status: TaskStatus;
+  due_date: string | null;
+  progress: number;
+  created_at: string;
+  updated_at: string;
+  created_by: number;
+  creator:
+    | { first_name: string | null; last_name: string | null }
+    | Array<{ first_name: string | null; last_name: string | null }>
+    | null;
+  task_type: { name: string | null } | Array<{ name: string | null }> | null;
+  task_assignments?:
+    | Array<{ user: TaskAssignment | TaskAssignment[] | null }>
+    | null;
 }
 
-const TASK_SELECT = `
-  SELECT
-    t.*,
-    creator.first_name || ' ' || creator.last_name AS creator_name,
-    tt.name AS task_type_name
-  FROM tasks t
-  JOIN users creator ON t.created_by = creator.id
-  LEFT JOIN task_types tt ON t.task_type_id = tt.id
-`;
+function pickOne<T>(value: T | T[] | null | undefined): T | null {
+  if (!value) return null;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+function mapTask(row: TaskRow): Task {
+  const creator = pickOne(row.creator);
+  const taskType = pickOne(row.task_type);
+  const creatorFirst = creator?.first_name ?? "";
+  const creatorLast = creator?.last_name ?? "";
+
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    task_type_id: row.task_type_id,
+    task_type_name: taskType?.name ?? undefined,
+    priority: row.priority,
+    status: row.status,
+    due_date: row.due_date,
+    progress: row.progress,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    created_by: row.created_by,
+    creator_name: `${creatorFirst} ${creatorLast}`.trim(),
+    assignments: (row.task_assignments ?? [])
+      .map((assignment) => pickOne(assignment.user))
+      .filter((user): user is TaskAssignment => Boolean(user)),
+  };
+}
+
+async function fetchTaskRows() {
+  const { data, error } = await supabaseAdmin
+    .from("tasks")
+    .select(`
+      id,
+      title,
+      description,
+      task_type_id,
+      priority,
+      status,
+      due_date,
+      progress,
+      created_at,
+      updated_at,
+      created_by,
+      creator:users!tasks_created_by_fkey(first_name,last_name),
+      task_type:task_types!tasks_task_type_id_fkey(name),
+      task_assignments(user:users!task_assignments_user_id_fkey(id,first_name,last_name))
+    `)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as unknown as TaskRow[];
+}
 
 function normalizeFilters(filters: TaskFilters = {}) {
   return {
-    search: filters.search,
+    search: filters.search?.trim().toLowerCase(),
     status: filters.status,
     priority: filters.priority,
     assignee:
@@ -125,152 +158,167 @@ function normalizeFilters(filters: TaskFilters = {}) {
 
 export async function findAllTasks(filters: TaskFilters = {}): Promise<Task[]> {
   const normalized = normalizeFilters(filters);
+  const tasks = (await fetchTaskRows()).map(mapTask);
 
-  let sql = TASK_SELECT;
-  const conditions: string[] = [];
-  const params: Array<string | number> = [];
-  let idx = 1;
+  return tasks.filter((task) => {
+    if (normalized.search) {
+      const haystack = `${task.title} ${task.description ?? ""}`.toLowerCase();
+      if (!haystack.includes(normalized.search)) return false;
+    }
 
-  if (normalized.userId) {
-    sql += ` JOIN task_assignments ta_filter ON t.id = ta_filter.task_id AND ta_filter.user_id = $${idx++}`;
-    params.push(normalized.userId);
-  }
+    if (normalized.status && task.status !== normalized.status) return false;
+    if (normalized.priority && task.priority !== normalized.priority) return false;
 
-  if (normalized.search) {
-    conditions.push(`(t.title ILIKE $${idx} OR COALESCE(t.description, '') ILIKE $${idx + 1})`);
-    params.push(`%${normalized.search}%`, `%${normalized.search}%`);
-    idx += 2;
-  }
+    if (normalized.assignee) {
+      const isAssigned = task.assignments?.some((assignment) => assignment.id === normalized.assignee) ?? false;
+      if (!isAssigned) return false;
+    }
 
-  if (normalized.status) {
-    conditions.push(`t.status = $${idx++}`);
-    params.push(normalized.status);
-  }
+    if (normalized.userId) {
+      const isAssigned = task.assignments?.some((assignment) => assignment.id === normalized.userId) ?? false;
+      if (!isAssigned) return false;
+    }
 
-  if (normalized.priority) {
-    conditions.push(`t.priority = $${idx++}`);
-    params.push(normalized.priority);
-  }
+    if (normalized.dateFrom && task.due_date && task.due_date < normalized.dateFrom) return false;
+    if (normalized.dateFrom && !task.due_date) return false;
+    if (normalized.dateTo && task.due_date && task.due_date > normalized.dateTo) return false;
+    if (normalized.dateTo && !task.due_date) return false;
 
-  if (normalized.assignee) {
-    conditions.push(`t.id IN (SELECT task_id FROM task_assignments WHERE user_id = $${idx++})`);
-    params.push(normalized.assignee);
-  }
-
-  if (normalized.dateFrom) {
-    conditions.push(`t.due_date >= $${idx++}`);
-    params.push(normalized.dateFrom);
-  }
-
-  if (normalized.dateTo) {
-    conditions.push(`t.due_date <= $${idx++}`);
-    params.push(normalized.dateTo);
-  }
-
-  if (conditions.length > 0) {
-    sql += " WHERE " + conditions.join(" AND ");
-  }
-
-  sql += " ORDER BY t.created_at DESC";
-
-  const result = await query<Task>(sql, params);
-  return hydrateAssignments(result.rows);
+    return true;
+  });
 }
 
 export async function findTaskById(id: number): Promise<Task | null> {
-  const result = await query<Task>(`${TASK_SELECT} WHERE t.id = $1`, [id]);
-  const task = result.rows[0] ?? null;
-  if (!task) return null;
-  const [hydratedTask] = await hydrateAssignments([task]);
-  return hydratedTask ?? null;
+  const { data, error } = await supabaseAdmin
+    .from("tasks")
+    .select(`
+      id,
+      title,
+      description,
+      task_type_id,
+      priority,
+      status,
+      due_date,
+      progress,
+      created_at,
+      updated_at,
+      created_by,
+      creator:users!tasks_created_by_fkey(first_name,last_name),
+      task_type:task_types!tasks_task_type_id_fkey(name),
+      task_assignments(user:users!task_assignments_user_id_fkey(id,first_name,last_name))
+    `)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? mapTask(data as unknown as TaskRow) : null;
 }
 
 export async function createTask(dto: CreateTaskDTO): Promise<number> {
-  const result = await query<{ id: number }>(
-    `INSERT INTO tasks (title, description, task_type_id, priority, due_date, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6)
-     RETURNING id`,
-    [
-      dto.title,
-      dto.description ?? null,
-      dto.task_type_id ?? null,
-      dto.priority ?? "medium",
-      dto.due_date ?? null,
-      dto.created_by,
-    ]
-  );
+  const { data, error } = await supabaseAdmin
+    .from("tasks")
+    .insert({
+      title: dto.title,
+      description: dto.description ?? null,
+      task_type_id: dto.task_type_id ?? null,
+      priority: dto.priority ?? "medium",
+      due_date: dto.due_date ?? null,
+      created_by: dto.created_by,
+    })
+    .select("id")
+    .single();
 
-  return result.rows[0].id;
+  if (error || !data) throw error ?? new Error("Failed to create task");
+  return data.id;
 }
 
 export async function updateTask(id: number, dto: UpdateTaskDTO): Promise<void> {
-  await query(
-    `UPDATE tasks
-     SET title = $1,
-         description = $2,
-         task_type_id = $3,
-         priority = $4,
-         status = $5,
-         due_date = $6,
-         updated_at = CURRENT_TIMESTAMP
-     WHERE id = $7`,
-    [
-      dto.title,
-      dto.description ?? null,
-      dto.task_type_id ?? null,
-      dto.priority,
-      dto.status,
-      dto.due_date ?? null,
-      id,
-    ]
-  );
+  const payload: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (dto.title !== undefined) payload.title = dto.title;
+  if (dto.description !== undefined) payload.description = dto.description ?? null;
+  if (dto.task_type_id !== undefined) payload.task_type_id = dto.task_type_id ?? null;
+  if (dto.priority !== undefined) payload.priority = dto.priority;
+  if (dto.status !== undefined) payload.status = dto.status;
+  if (dto.due_date !== undefined) payload.due_date = dto.due_date ?? null;
+
+  const { error } = await supabaseAdmin
+    .from("tasks")
+    .update(payload)
+    .eq("id", id);
+
+  if (error) throw error;
 }
 
 export async function deleteTask(id: number): Promise<void> {
-  await query("DELETE FROM tasks WHERE id = $1", [id]);
+  const { error } = await supabaseAdmin
+    .from("tasks")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
 }
 
 export async function updateTaskStatus(id: number, status: TaskStatus, progress: number): Promise<void> {
-  await query(
-    "UPDATE tasks SET status = $1, progress = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3",
-    [status, progress, id]
-  );
+  const { error } = await supabaseAdmin
+    .from("tasks")
+    .update({
+      status,
+      progress,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) throw error;
 }
 
 export async function getTaskAssignments(taskId: number): Promise<TaskAssignment[]> {
-  const result = await query<TaskAssignment>(
-    `SELECT u.id, u.first_name, u.last_name
-     FROM task_assignments ta
-     JOIN users u ON ta.user_id = u.id
-     WHERE ta.task_id = $1`,
-    [taskId]
-  );
+  const { data, error } = await supabaseAdmin
+    .from("task_assignments")
+    .select("user:users!task_assignments_user_id_fkey(id,first_name,last_name)")
+    .eq("task_id", taskId);
 
-  return result.rows;
+  if (error) throw error;
+
+  return (data ?? [])
+    .map((row: any) => row.user)
+    .filter((user): user is TaskAssignment => Boolean(user));
 }
 
 export async function getCurrentAssignments(taskId: number): Promise<number[]> {
-  const result = await query<{ user_id: number }>(
-    "SELECT user_id FROM task_assignments WHERE task_id = $1 ORDER BY user_id",
-    [taskId]
-  );
+  const { data, error } = await supabaseAdmin
+    .from("task_assignments")
+    .select("user_id")
+    .eq("task_id", taskId)
+    .order("user_id", { ascending: true });
 
-  return result.rows.map(row => row.user_id);
+  if (error) throw error;
+  return (data ?? []).map((row: any) => row.user_id);
 }
 
 export async function setTaskAssignments(
-  client: PoolClient,
+  _client: PoolClient | null | undefined,
   taskId: number,
   userIds: number[]
 ): Promise<void> {
-  await client.query("DELETE FROM task_assignments WHERE task_id = $1", [taskId]);
+  const { error: deleteError } = await supabaseAdmin
+    .from("task_assignments")
+    .delete()
+    .eq("task_id", taskId);
 
-  for (const userId of userIds) {
-    await client.query(
-      "INSERT INTO task_assignments (task_id, user_id) VALUES ($1, $2)",
-      [taskId, userId]
-    );
+  if (deleteError) throw deleteError;
+
+  if (userIds.length === 0) {
+    return;
   }
+
+  const { error: insertError } = await supabaseAdmin
+    .from("task_assignments")
+    .insert(userIds.map((userId) => ({ task_id: taskId, user_id: userId })));
+
+  if (insertError) throw insertError;
 }
 
 export async function findAll(filters?: TaskFilters): Promise<Task[]> {
@@ -298,7 +346,5 @@ export async function getAssignments(taskId: number): Promise<TaskAssignment[]> 
 }
 
 export async function setAssignments(taskId: number, userIds: number[]): Promise<void> {
-  await transaction(async client => {
-    await setTaskAssignments(client, taskId, userIds);
-  });
+  await setTaskAssignments(undefined, taskId, userIds);
 }

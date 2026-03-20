@@ -1,5 +1,5 @@
 import { PoolClient } from "pg";
-import { query } from "../database/connection.js";
+import { supabaseAdmin } from "../config/supabase.js";
 
 export async function createAuditLog(
   taskId: number,
@@ -9,21 +9,17 @@ export async function createAuditLog(
   newData: any = null,
   client?: PoolClient
 ): Promise<void> {
-  const sql = `
-    INSERT INTO task_audit_logs (task_id, user_id, action, old_data, new_data)
-    VALUES ($1, $2, $3, $4, $5)
-  `;
-  const params = [
-    taskId,
-    userId,
-    action,
-    oldData ? JSON.stringify(oldData) : null,
-    newData ? JSON.stringify(newData) : null,
-  ];
+  void client;
 
-  if (client) {
-    await client.query(sql, params);
-  } else {
-    await query(sql, params);
-  }
+  const { error } = await supabaseAdmin
+    .from("task_audit_logs")
+    .insert({
+      task_id: taskId,
+      user_id: userId,
+      action,
+      old_data: oldData,
+      new_data: newData,
+    });
+
+  if (error) throw error;
 }

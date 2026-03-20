@@ -1,4 +1,4 @@
-import { query } from "../connection.js";
+import { supabaseAdmin } from "../../config/supabase.js";
 
 export interface TaskActivity {
   id: number;
@@ -13,15 +13,32 @@ export interface TaskActivity {
 }
 
 export async function getActivityByTaskId(taskId: number): Promise<TaskActivity[]> {
-  const sql = `
-    SELECT a.*, 
-           case when a.user_id is not null then u.first_name || ' ' || u.last_name else 'System' end as user_name,
-           'audit' as type
-    FROM task_audit_logs a
-    LEFT JOIN users u ON a.user_id = u.id
-    WHERE a.task_id = $1
-    ORDER BY a.created_at DESC
-  `;
-  const result = await query<TaskActivity>(sql, [taskId]);
-  return result.rows;
+  const { data, error } = await supabaseAdmin
+    .from("task_audit_logs")
+    .select(`
+      id,
+      task_id,
+      user_id,
+      action,
+      old_data,
+      new_data,
+      created_at,
+      user:users!task_audit_logs_user_id_fkey(first_name,last_name)
+    `)
+    .eq("task_id", taskId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    task_id: row.task_id,
+    user_id: row.user_id,
+    action: row.action,
+    old_data: row.old_data,
+    new_data: row.new_data,
+    created_at: row.created_at,
+    user_name: row.user ? `${row.user.first_name ?? ""} ${row.user.last_name ?? ""}`.trim() || "System" : "System",
+    type: "audit" as const,
+  }));
 }

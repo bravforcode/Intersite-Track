@@ -1,4 +1,4 @@
-import { query } from "../connection.js";
+import { supabaseAdmin } from "../../config/supabase.js";
 
 export interface NotificationRow {
   id: number;
@@ -12,27 +12,44 @@ export interface NotificationRow {
 }
 
 export async function getNotificationsByUser(userId: number): Promise<NotificationRow[]> {
-  const result = await query<NotificationRow>(
-    "SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50",
-    [userId]
-  );
-  return result.rows;
+  const { data, error } = await supabaseAdmin
+    .from("notifications")
+    .select("*")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  if (error) throw error;
+  return (data ?? []) as NotificationRow[];
 }
 
 export async function getUnreadCount(userId: number): Promise<number> {
-  const result = await query<{ count: string }>(
-    "SELECT count(*) as count FROM notifications WHERE user_id = $1 AND is_read = 0",
-    [userId]
-  );
-  return Number(result.rows[0].count);
+  const { count, error } = await supabaseAdmin
+    .from("notifications")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("is_read", 0);
+
+  if (error) throw error;
+  return count ?? 0;
 }
 
 export async function markNotificationRead(id: number): Promise<void> {
-  await query("UPDATE notifications SET is_read = 1 WHERE id = $1", [id]);
+  const { error } = await supabaseAdmin
+    .from("notifications")
+    .update({ is_read: 1 })
+    .eq("id", id);
+
+  if (error) throw error;
 }
 
 export async function markAllNotificationsRead(userId: number): Promise<void> {
-  await query("UPDATE notifications SET is_read = 1 WHERE user_id = $1", [userId]);
+  const { error } = await supabaseAdmin
+    .from("notifications")
+    .update({ is_read: 1 })
+    .eq("user_id", userId);
+
+  if (error) throw error;
 }
 
 export async function createNotification(
@@ -42,8 +59,15 @@ export async function createNotification(
   type: string,
   referenceId?: number
 ): Promise<void> {
-  await query(
-    "INSERT INTO notifications (user_id, title, message, type, reference_id) VALUES ($1, $2, $3, $4, $5)",
-    [userId, title, message, type, referenceId ?? null]
-  );
+  const { error } = await supabaseAdmin
+    .from("notifications")
+    .insert({
+      user_id: userId,
+      title,
+      message,
+      type,
+      reference_id: referenceId ?? null,
+    });
+
+  if (error) throw error;
 }

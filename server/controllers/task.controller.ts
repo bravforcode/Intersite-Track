@@ -5,7 +5,7 @@ import {
 } from "../database/queries/task.queries.js";
 import { findAllUsers } from "../database/queries/user.queries.js";
 import { createNotification } from "../database/queries/notification.queries.js";
-import { query, transaction } from "../database/connection.js";
+import { supabaseAdmin } from "../config/supabase.js";
 import { createAuditLog } from "../utils/auditLogger.js";
 import { ensureTaskAccess } from "../utils/taskAccess.js";
 
@@ -41,13 +41,17 @@ export async function getTasksWorkspace(req: Request, res: Response, next: NextF
     const [tasks, users, taskTypesResult] = await Promise.all([
       findAllTasks(filters),
       findAllUsers(),
-      query<TaskTypeRow>("SELECT id, name FROM task_types ORDER BY id"),
+      supabaseAdmin.from("task_types").select("id, name").order("id", { ascending: true }),
     ]);
+
+    if (taskTypesResult.error) {
+      throw taskTypesResult.error;
+    }
 
     res.json({
       tasks,
       users,
-      taskTypes: taskTypesResult.rows,
+      taskTypes: taskTypesResult.data ?? [],
     });
   } catch (err) {
     next(err);
@@ -73,19 +77,23 @@ export async function createTaskHandler(req: Request, res: Response, next: NextF
     const { title, description, task_type_id, priority, due_date, created_by, assigned_user_ids } = req.body;
     if (!title) { res.status(400).json({ error: "กรุณาระบุชื่องาน" }); return; }
 
-    const taskId = await transaction(async (client) => {
-      const id = await createTask({ title, description, task_type_id, priority, due_date, created_by });
-      if (assigned_user_ids?.length) {
-        await setTaskAssignments(client, id, assigned_user_ids);
-        for (const uid of assigned_user_ids) {
-          await createNotification(uid, "งานใหม่", `คุณได้รับมอบหมายงาน: ${title}`, "task_assigned", id);
-        }
+    const taskId = await createTask({ title, description, task_type_id, priority, due_date, created_by });
+
+    if (assigned_user_ids?.length) {
+      await setTaskAssignments(undefined, taskId, assigned_user_ids);
+      for (const uid of assigned_user_ids) {
+        await createNotification(uid, "งานใหม่", `คุณได้รับมอบหมายงาน: ${title}`, "task_assigned", taskId);
       }
-      
-      await createAuditLog(id, req.user?.id || null, "CREATE", null, { title, description, task_type_id, priority, due_date, assigned_user_ids }, client);
-      
-      return id;
-    });
+    }
+
+    await createAuditLog(
+      taskId,
+      req.user?.id || null,
+      "CREATE",
+      null,
+      { title, description, task_type_id, priority, due_date, assigned_user_ids }
+    );
+
     res.json({ id: taskId });
   } catch (err) { next(err); }
 }
@@ -95,24 +103,28 @@ export async function updateTaskHandler(req: Request, res: Response, next: NextF
   try {
     const taskId = Number(req.params.id);
     const { title, description, task_type_id, priority, status, due_date, assigned_user_ids } = req.body;
+    const existingTask = await findTaskById(taskId);
+    await updateTask(taskId, { title, description, task_type_id, priority, status, due_date });
 
-    await transaction(async (client) => {
-      const existingTask = await findTaskById(taskId);
-      await updateTask(taskId, { title, description, task_type_id, priority, status, due_date });
-      
-      await createAuditLog(taskId, req.user?.id || null, "UPDATE", existingTask, { title, description, task_type_id, priority, status, due_date, assigned_user_ids }, client);
+    await createAuditLog(
+      taskId,
+      req.user?.id || null,
+      "UPDATE",
+      existingTask,
+      { title, description, task_type_id, priority, status, due_date, assigned_user_ids }
+    );
 
-      const currentIds = await getCurrentAssignments(taskId);
-      if (assigned_user_ids?.length) {
-        await setTaskAssignments(client, taskId, assigned_user_ids);
-        for (const uid of assigned_user_ids) {
-          if (!currentIds.includes(uid)) {
-            await createNotification(uid, "งานใหม่", `คุณได้รับมอบหมายงาน: ${title}`, "task_assigned", taskId);
-          }
-          await createNotification(uid, "แก้ไขงาน", `งาน "${title}" ได้รับการแก้ไข`, "task_updated", taskId);
+    const currentIds = await getCurrentAssignments(taskId);
+    if (Array.isArray(assigned_user_ids)) {
+      await setTaskAssignments(undefined, taskId, assigned_user_ids);
+      for (const uid of assigned_user_ids) {
+        if (!currentIds.includes(uid)) {
+          await createNotification(uid, "งานใหม่", `คุณได้รับมอบหมายงาน: ${title}`, "task_assigned", taskId);
         }
+        await createNotification(uid, "แก้ไขงาน", `งาน "${title}" ได้รับการแก้ไข`, "task_updated", taskId);
       }
-    });
+    }
+
     res.json({ success: true });
   } catch (err) { next(err); }
 }
