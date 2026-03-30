@@ -13,17 +13,24 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 
-const uploadsRoot = process.env.VERCEL ? "/tmp" : process.cwd();
-const uploadsDir = path.join(uploadsRoot, "uploads");
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+const isDev = process.env.NODE_ENV !== "production";
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
-});
+// ── Storage setup ──────────────────────────────────────────────────
+// Dev: save to local /uploads folder
+// Production: use memory buffer → upload to Vercel Blob
+const uploadsDir = path.join(process.cwd(), "uploads");
+if (isDev && !fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+const storage = isDev
+  ? multer.diskStorage({
+      destination: (_req, _file, cb) => cb(null, uploadsDir),
+      filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
+    })
+  : multer.memoryStorage(); // production: keep in memory, upload to Vercel Blob
+
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
     else cb(new Error("อนุญาตเฉพาะไฟล์รูปภาพเท่านั้น"));
@@ -43,12 +50,33 @@ router.get("/:id/updates", requireAuth, getTaskUpdates);
 router.post("/:id/updates", requireAuth, addTaskUpdate);
 router.get("/:id/checklists", requireAuth, getChecklists);
 router.post("/:id/checklists", requireAuth, saveChecklists);
+router.patch("/:id/checklists/:checklistId/toggle", requireAuth, toggleChecklist);
 router.get("/:id/comments", requireAuth, getTaskComments);
 router.post("/:id/comments", requireAuth, addTaskComment);
 router.get("/:id/activity", requireAuth, getTaskActivity);
-router.post("/upload", requireAuth, upload.single("image"), (req, res) => {
+
+// POST /api/tasks/upload — upload image attachment
+router.post("/upload", requireAuth, upload.single("image"), async (req, res) => {
   if (!req.file) { res.status(400).json({ error: "ไม่พบไฟล์" }); return; }
-  res.json({ url: `/uploads/${req.file.filename}` });
+
+  try {
+    if (isDev) {
+      // Dev: return local URL
+      res.json({ url: `/uploads/${(req.file as Express.Multer.File & { filename: string }).filename}` });
+    } else {
+      // Production: upload to Vercel Blob
+      const { put } = await import("@vercel/blob");
+      const filename = `task-attachments/${Date.now()}-${req.file.originalname}`;
+      const blob = await put(filename, req.file.buffer, {
+        access: "public",
+        contentType: req.file.mimetype,
+      });
+      res.json({ url: blob.url });
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Upload failed";
+    res.status(500).json({ error: `อัปโหลดไฟล์ไม่สำเร็จ: ${msg}` });
+  }
 });
 
 export default router;

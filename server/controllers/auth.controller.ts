@@ -130,7 +130,7 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
       } else {
         res.status(500).json({
           error: "ยังไม่สามารถสร้างบัญชีได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง",
-          detail: msg || "create profile failed",
+          ...(process.env.NODE_ENV === "development" && { detail: msg || "create profile failed" }),
         });
       }
     }

@@ -3,6 +3,8 @@ import { createServer as createViteServer } from "vite";
 import net from "node:net";
 import path from "path";
 import dotenv from "dotenv";
+import cors from "cors";
+import helmet from "helmet";
 import apiRoutes from "./server/routes/index.js";
 import { notFound, errorHandler } from "./server/middleware/error.middleware.js";
 import { apiRateLimiter } from "./server/middleware/rateLimit.middleware.js";
@@ -15,7 +17,20 @@ const PORT = Number(process.env.PORT) || 3694;
 const isDev = process.env.NODE_ENV !== "production";
 const DEFAULT_HMR_PORT = 24678;
 
-app.use(express.json());
+// Security: HTTP headers
+app.use(helmet({ contentSecurityPolicy: isDev ? false : undefined }));
+
+// Security: CORS
+const allowedOrigins = process.env.ALLOWED_ORIGIN
+  ? process.env.ALLOWED_ORIGIN.split(",").map((o) => o.trim())
+  : [`http://localhost:${PORT}`];
+app.use(cors({
+  origin: isDev ? true : allowedOrigins,
+  credentials: true,
+}));
+
+// Body size limit (prevent large payload attacks)
+app.use(express.json({ limit: "1mb" }));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // API routes (must come before SPA routes)

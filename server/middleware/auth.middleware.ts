@@ -23,6 +23,14 @@ const authCache = new Map<
   }
 >();
 
+// Cleanup expired cache entries every 2 minutes to prevent memory leak
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of authCache.entries()) {
+    if (val.expiresAt < now) authCache.delete(key);
+  }
+}, 2 * 60_000);
+
 /**
  * Verify Supabase JWT and attach the mapped application user to req.user.
  */

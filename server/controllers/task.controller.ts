@@ -119,9 +119,12 @@ export async function updateTaskHandler(req: Request, res: Response, next: NextF
       await setTaskAssignments(undefined, taskId, assigned_user_ids);
       for (const uid of assigned_user_ids) {
         if (!currentIds.includes(uid)) {
+          // New assignee: only send 'new task' notification
           await createNotification(uid, "งานใหม่", `คุณได้รับมอบหมายงาน: ${title}`, "task_assigned", taskId);
+        } else {
+          // Existing assignee: send update notification
+          await createNotification(uid, "แก้ไขงาน", `งาน "${title}" ได้รับการแก้ไข`, "task_updated", taskId);
         }
-        await createNotification(uid, "แก้ไขงาน", `งาน "${title}" ได้รับการแก้ไข`, "task_updated", taskId);
       }
     }
 
