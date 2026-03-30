@@ -5,6 +5,7 @@ coverage/
 uploads/
 .DS_Store
 *.log
+.coverage
 .env*
 !.env.example
 
