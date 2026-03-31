@@ -48,13 +48,23 @@ export function TaskFormModal({ task, currentUser, onClose, onSave }: TaskFormMo
 
     if (task) {
       taskService.getChecklists(task.id).then((rows) => {
-        const parents = rows.filter((r: any) => !r.parent_id);
-        const items: ChecklistItem[] = parents.map((p: any) => ({
+        const parents = rows.filter((r) => !r.parent_id);
+        const items: ChecklistItem[] = parents.map((p) => ({
+          id: p.id,
           title: p.title,
           is_checked: !!p.is_checked,
           sort_order: p.sort_order,
-          children: rows.filter((c: any) => c.parent_id === p.id).map((c: any) => ({
-            title: c.title, is_checked: !!c.is_checked, sort_order: c.sort_order,
+          checked_by: p.checked_by ?? null,
+          checked_at: p.checked_at ?? null,
+          checked_by_name: p.checked_by_name ?? null,
+          children: rows.filter((c) => c.parent_id === p.id).map((c) => ({
+            id: c.id,
+            title: c.title,
+            is_checked: !!c.is_checked,
+            sort_order: c.sort_order,
+            checked_by: c.checked_by ?? null,
+            checked_at: c.checked_at ?? null,
+            checked_by_name: c.checked_by_name ?? null,
           })),
         }));
         setChecklist(items);
@@ -85,7 +95,7 @@ export function TaskFormModal({ task, currentUser, onClose, onSave }: TaskFormMo
         const result = await taskService.createTask({ ...payload, created_by: currentUser.id });
         taskId = result.id;
       }
-      if (taskId && checklist.length > 0) {
+      if (taskId && (task !== null || checklist.length > 0)) {
         await taskService.saveChecklists(taskId, checklist);
       }
       onSave();
@@ -173,7 +183,7 @@ export function TaskFormModal({ task, currentUser, onClose, onSave }: TaskFormMo
                       <input type="text" className="flex-1 px-3 py-1.5 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-[#5A5A40] outline-none"
                         placeholder={`หัวข้อหลัก ${idx + 1}`} value={item.title}
                         onChange={(e) => { const c = [...checklist]; c[idx] = { ...c[idx], title: e.target.value }; setChecklist(c); }} />
-                      <button type="button" onClick={() => { const c = [...checklist]; c[idx].children.push({ title: "", is_checked: false, sort_order: c[idx].children.length }); setChecklist([...c]); }}
+                      <button type="button" onClick={() => { const c = [...checklist]; c[idx].children.push({ title: "", is_checked: false, sort_order: c[idx].children.length, checked_by: null, checked_at: null, checked_by_name: null }); setChecklist([...c]); }}
                         className="p-1 text-[#5A5A40] hover:bg-[#5A5A40]/10 rounded-lg" title="เพิ่มหัวข้อย่อย">
                         <CornerDownRight size={14} />
                       </button>
@@ -194,7 +204,7 @@ export function TaskFormModal({ task, currentUser, onClose, onSave }: TaskFormMo
                     ))}
                   </div>
                 ))}
-                <button type="button" onClick={() => setChecklist([...checklist, { title: "", is_checked: false, sort_order: checklist.length, children: [] }])}
+                <button type="button" onClick={() => setChecklist([...checklist, { title: "", is_checked: false, sort_order: checklist.length, checked_by: null, checked_at: null, checked_by_name: null, children: [] }])}
                   className="flex items-center gap-1.5 text-xs font-medium text-[#5A5A40] hover:bg-[#5A5A40]/10 px-3 py-1.5 rounded-lg transition-colors">
                   <Plus size={14} /> เพิ่มหัวข้อหลัก
                 </button>

@@ -4,6 +4,7 @@ import type {
   TaskUpdate,
   TaskComment,
   TaskActivity,
+  TaskChecklistRow,
   ChecklistItem,
   CreateTaskDTO,
   UpdateTaskDTO,
@@ -58,12 +59,13 @@ export const taskService = {
 
   getActivity: (taskId: number) => api.get<TaskActivity[]>(`/api/tasks/${taskId}/activity`),
 
-  getChecklists: (taskId: number) => api.get<ChecklistItem[]>(`/api/tasks/${taskId}/checklists`),
+  getChecklists: (taskId: number) => api.get<TaskChecklistRow[]>(`/api/tasks/${taskId}/checklists`),
 
   saveChecklists: (taskId: number, items: ChecklistItem[]) =>
     api.post<{ success: boolean; progress: number }>(`/api/tasks/${taskId}/checklists`, { items }),
 
-  toggleChecklist: (id: number) => api.patch<void>(`/api/checklists/${id}/toggle`),
+  toggleChecklist: (taskId: number, checklistId: number) =>
+    api.patch<{ success: boolean; progress: number; status: string }>(`/api/tasks/${taskId}/checklists/${checklistId}/toggle`),
 
   getStats: () => api.get<Stats>("/api/stats"),
 

@@ -59,11 +59,26 @@ export interface TaskActivity {
   type: "audit";
 }
 
+export interface TaskChecklistRow {
+  id: number;
+  task_id: number;
+  parent_id: number | null;
+  title: string;
+  is_checked: boolean;
+  sort_order: number;
+  checked_by?: number | null;
+  checked_at?: string | null;
+  checked_by_name?: string | null;
+}
+
 export interface ChecklistChild {
   id?: number;
   title: string;
   is_checked: boolean;
   sort_order: number;
+  checked_by?: number | null;
+  checked_at?: string | null;
+  checked_by_name?: string | null;
 }
 
 export interface ChecklistItem {
@@ -71,6 +86,9 @@ export interface ChecklistItem {
   title: string;
   is_checked: boolean;
   sort_order: number;
+  checked_by?: number | null;
+  checked_at?: string | null;
+  checked_by_name?: string | null;
   children: ChecklistChild[];
 }
 

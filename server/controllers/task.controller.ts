@@ -155,9 +155,11 @@ export async function updateStatus(req: Request, res: Response, next: NextFuncti
       }
     }
 
-    await updateTaskStatus(taskId, status, progress ?? 0);
+    const nextProgress = typeof progress === "number" ? progress : task.progress;
+
+    await updateTaskStatus(taskId, status, nextProgress);
     
-    await createAuditLog(taskId, req.user?.id || null, "STATUS_CHANGE", { status: task.status, progress: task.progress }, { status, progress });
+    await createAuditLog(taskId, req.user?.id || null, "STATUS_CHANGE", { status: task.status, progress: task.progress }, { status, progress: nextProgress });
 
     for (const a of assignments) {
       // Don't notify the person who made the change

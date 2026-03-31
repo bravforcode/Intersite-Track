@@ -39,6 +39,7 @@ const ACTIVITY_LABELS: Record<string, string> = {
   UPDATE: "แก้ไขรายละเอียด",
   STATUS_CHANGE: "เปลี่ยนสถานะ",
   PROGRESS_UPDATE: "อัปเดตความคืบหน้า",
+  CHECKLIST_TOGGLE: "ติ๊ก Checklist",
   CHECKLIST_UPDATE: "อัปเดต Checklist",
   COMMENT: "เพิ่มความคิดเห็น",
   DELETE: "ลบงาน",
@@ -65,16 +66,24 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
 
   const fetchChecklist = async () => {
     try {
-      const rows = await taskService.getChecklists(task.id) as any[];
+      const rows = await taskService.getChecklists(task.id);
       const parents = rows.filter((r) => !r.parent_id);
       const items: ChecklistItem[] = parents.map((p) => ({
+        id: p.id,
         title: p.title,
         is_checked: !!p.is_checked,
         sort_order: p.sort_order,
+        checked_by: p.checked_by ?? null,
+        checked_at: p.checked_at ?? null,
+        checked_by_name: p.checked_by_name ?? null,
         children: rows.filter((c) => c.parent_id === p.id).map((c) => ({
+          id: c.id,
           title: c.title,
           is_checked: !!c.is_checked,
           sort_order: c.sort_order,
+          checked_by: c.checked_by ?? null,
+          checked_at: c.checked_at ?? null,
+          checked_by_name: c.checked_by_name ?? null,
         })),
       }));
       setTaskChecklist(items);
@@ -99,28 +108,39 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
     } catch {}
   };
 
-  const allCheckItems = taskChecklist.flatMap((i) => [i, ...i.children]);
+  const allCheckItems = taskChecklist.flatMap((item) => (
+    item.children.length > 0 ? item.children : [item]
+  ));
   const checkTotal = allCheckItems.length;
-  const checkChecked = allCheckItems.filter((i) => i.is_checked).length;
-  const checklistProgress = checkTotal > 0 ? Math.round((checkChecked / checkTotal) * 100) : task.progress;
+  const checkChecked = allCheckItems.filter((item) => item.is_checked).length;
+  const checklistProgress = taskChecklist.length > 0
+    ? (checkTotal > 0 ? Math.round((checkChecked / checkTotal) * 100) : 0)
+    : task.progress;
+  const displayTaskStatus = task.status === "cancelled"
+    ? "cancelled"
+    : checkTotal > 0
+      ? (checklistProgress >= 100 ? "completed" : checklistProgress > 0 ? "in_progress" : "pending")
+      : task.status;
 
   const toggleChecklistItem = async (parentIdx: number, childIdx?: number) => {
-    const checklistCopy = [...taskChecklist];
-    if (childIdx !== undefined) {
-      checklistCopy[parentIdx].children[childIdx].is_checked = !checklistCopy[parentIdx].children[childIdx].is_checked;
-    } else {
-      checklistCopy[parentIdx].is_checked = !checklistCopy[parentIdx].is_checked;
-    }
+    const parent = taskChecklist[parentIdx];
+    const target = childIdx !== undefined ? parent.children[childIdx] : parent;
 
-    setTaskChecklist(checklistCopy);
-    await taskService.saveChecklists(task.id, checklistCopy);
-    await Promise.all([fetchActivity(), onUpdate()]);
+    if (!target?.id) return;
+
+    try {
+      await taskService.toggleChecklist(task.id, target.id);
+      await Promise.all([fetchChecklist(), fetchActivity(), onUpdate()]);
+    } catch {
+      // Error state is surfaced by the API layer and guarded by user feedback upstream.
+    }
   };
 
   const handleSubmitUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
+      const progressForUpdate = taskChecklist.length > 0 ? checklistProgress : newUpdate.progress;
       let attachUrl: string | undefined;
       if (imageFile) {
         setUploading(true);
@@ -131,11 +151,11 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
       await taskService.addUpdate(task.id, {
         user_id: user.id,
         update_text: newUpdate.text,
-        progress: newUpdate.progress,
+        progress: progressForUpdate,
         attachment_url: attachUrl,
       });
 
-      setNewUpdate({ text: "", progress: newUpdate.progress });
+      setNewUpdate({ text: "", progress: progressForUpdate });
       setImageFile(null);
       setImagePreview(null);
 
@@ -165,13 +185,30 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
   };
 
   const handleStatusChange = async (newStatus: string) => {
-    const progress = newStatus === "completed" ? 100 : task.progress;
+    const progress = newStatus === "completed" ? 100 : checklistProgress;
     await taskService.updateStatus(task.id, newStatus, progress);
     await onUpdate();
     onClose();
   };
 
   const taskType = taskTypes.find((t) => t.id === task.task_type_id);
+
+  const renderChecklistMeta = (item: { is_checked: boolean; checked_by_name?: string | null; checked_at?: string | null }) => {
+    if (!item.is_checked || !item.checked_by_name) return null;
+
+    const parts = item.checked_by_name.trim().split(/\s+/);
+    const initials = parts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? "").join("") || "?";
+
+    return (
+      <div className="ml-auto flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] text-emerald-700">
+        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 font-bold">
+          {initials}
+        </span>
+        <span className="font-semibold">{item.checked_by_name}</span>
+        {item.checked_at && <span className="text-emerald-600/80">{formatDateTime(item.checked_at)}</span>}
+      </div>
+    );
+  };
 
   const renderActivityDetail = (entry: TaskActivity) => {
     const nextData = entry.new_data ?? {};
@@ -187,8 +224,28 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
       return `ความคืบหน้า ${typeof nextData.progress === "number" ? nextData.progress : 0}%`;
     }
 
+    if (entry.action === "CHECKLIST_TOGGLE") {
+      const label = typeof nextData.display_label === "string"
+        ? nextData.display_label
+        : typeof prevData.display_label === "string"
+          ? prevData.display_label
+          : "Checklist";
+      const actor = typeof nextData.checked_by_name === "string" && nextData.checked_by_name
+        ? nextData.checked_by_name
+        : entry.user_name || "ผู้ใช้ในระบบ";
+
+      if (nextData.is_checked === true) {
+        const when = typeof nextData.checked_at === "string" ? formatDateTime(nextData.checked_at) : formatDateTime(entry.created_at);
+        return `${label} ถูกติ๊กโดย ${actor} เวลา ${when}`;
+      }
+
+      return `${label} ถูกยกเลิกการติ๊กโดย ${actor}`;
+    }
+
     if (entry.action === "CHECKLIST_UPDATE") {
-      return `Checklist ล่าสุด ${typeof nextData.progress === "number" ? nextData.progress : 0}%`;
+      const count = typeof nextData.checkable_count === "number" ? nextData.checkable_count : 0;
+      const progress = typeof nextData.progress === "number" ? nextData.progress : 0;
+      return `ปรับรายการ checklist แล้ว เหลือรายการที่นับจริง ${count} ข้อ (${progress}%)`;
     }
 
     if (entry.action === "COMMENT") {
@@ -219,7 +276,7 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
       >
         <div className="p-6 border-b border-gray-100 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${task.status === "completed" ? "bg-emerald-100 text-emerald-600" : "bg-[#F5F5F0] text-[#5A5A40]"}`}>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${displayTaskStatus === "completed" ? "bg-emerald-100 text-emerald-600" : "bg-[#F5F5F0] text-[#5A5A40]"}`}>
               <ClipboardList size={20} />
             </div>
             <div>
@@ -253,17 +310,27 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
                   {taskChecklist.map((item, idx) => {
                     const totalChildren = item.children.length;
                     const checkedChildren = item.children.filter((c) => c.is_checked).length;
+                    const isGroup = totalChildren > 0;
+                    const parentChecked = isGroup ? totalChildren > 0 && checkedChildren === totalChildren : item.is_checked;
                     return (
                       <div key={idx} className="space-y-1">
-                        <div className="flex items-center gap-2 group cursor-pointer" onClick={() => toggleChecklistItem(idx)}>
-                          {item.is_checked ? <CheckSquare size={18} className="text-emerald-500 shrink-0" /> : <Square size={18} className="text-gray-300 group-hover:text-gray-500 shrink-0" />}
-                          <span className={`text-sm font-bold ${item.is_checked ? "app-soft line-through" : "app-heading"}`}>{idx + 1}. {item.title}</span>
-                          {totalChildren > 0 && <span className="text-[10px] font-bold app-soft ml-auto">{checkedChildren}/{totalChildren}</span>}
+                        <div
+                          className={`flex items-center gap-2 ${isGroup ? "" : "group cursor-pointer"}`}
+                          onClick={isGroup ? undefined : () => toggleChecklistItem(idx)}
+                        >
+                          {parentChecked ? <CheckSquare size={18} className="text-emerald-500 shrink-0" /> : <Square size={18} className={`shrink-0 ${isGroup ? "text-gray-300" : "text-gray-300 group-hover:text-gray-500"}`} />}
+                          <span className={`text-sm font-bold ${parentChecked && !isGroup ? "app-soft line-through" : "app-heading"}`}>{idx + 1}. {item.title}</span>
+                          {isGroup ? (
+                            <span className="text-[10px] font-bold app-soft ml-auto">{checkedChildren}/{totalChildren}</span>
+                          ) : (
+                            renderChecklistMeta(item)
+                          )}
                         </div>
                         {item.children.map((child, ci) => (
                           <div key={ci} className="flex items-center gap-2 ml-7 group cursor-pointer" onClick={() => toggleChecklistItem(idx, ci)}>
                             {child.is_checked ? <CheckSquare size={16} className="text-emerald-500 shrink-0" /> : <Square size={16} className="text-gray-300 group-hover:text-gray-500 shrink-0" />}
                             <span className={`text-sm ${child.is_checked ? "app-soft line-through" : "app-muted"}`}>{idx + 1}.{ci + 1} {child.title}</span>
+                            {renderChecklistMeta(child)}
                           </div>
                         ))}
                       </div>
@@ -282,11 +349,11 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
               </section>
             )}
 
-            {user.role === "admin" && task.status !== "completed" && task.status !== "cancelled" && (
+            {user.role === "admin" && displayTaskStatus !== "completed" && displayTaskStatus !== "cancelled" && (
               <section>
                 <h4 className="text-xs font-bold uppercase tracking-wider app-soft mb-3">เปลี่ยนสถานะ</h4>
                 <div className="flex gap-2 flex-wrap">
-                  {task.status !== "in_progress" && (
+                  {displayTaskStatus !== "in_progress" && (
                     <button onClick={() => handleStatusChange("in_progress")} className="px-4 py-2 bg-amber-100 text-amber-700 rounded-xl text-sm font-medium hover:bg-amber-200">กำลังดำเนินการ</button>
                   )}
                   <button onClick={() => handleStatusChange("completed")} className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-xl text-sm font-medium hover:bg-emerald-200">เสร็จสิ้น</button>
@@ -416,8 +483,8 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
               <div>
                 <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-2">สถานะ</h4>
                 <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full ${statusDot[task.status]}`} />
-                  <span className="text-sm font-bold">{statusLabel[task.status]}</span>
+                  <div className={`w-2 h-2 rounded-full ${statusDot[displayTaskStatus]}`} />
+                  <span className="text-sm font-bold">{statusLabel[displayTaskStatus]}</span>
                 </div>
               </div>
               <div>

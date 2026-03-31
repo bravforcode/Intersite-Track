@@ -1,5 +1,6 @@
 import type { PoolClient } from "pg";
 import { supabaseAdmin } from "../../config/supabase.js";
+import { getChecklistRowsByTaskIds, summarizeChecklistRows } from "./checklist.queries.js";
 
 export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
@@ -136,6 +137,36 @@ async function fetchTaskRows() {
   return (data ?? []) as unknown as TaskRow[];
 }
 
+async function applyChecklistState(tasks: Task[]): Promise<Task[]> {
+  if (tasks.length === 0) {
+    return tasks;
+  }
+
+  const checklistRows = await getChecklistRowsByTaskIds(tasks.map((task) => task.id));
+  const rowsByTaskId = new Map<number, typeof checklistRows>();
+
+  for (const row of checklistRows) {
+    const rows = rowsByTaskId.get(row.task_id) ?? [];
+    rows.push(row);
+    rowsByTaskId.set(row.task_id, rows);
+  }
+
+  return tasks.map((task) => {
+    const rows = rowsByTaskId.get(task.id) ?? [];
+    const summary = summarizeChecklistRows(rows, task.status);
+
+    if (!summary.hasChecklist) {
+      return task;
+    }
+
+    return {
+      ...task,
+      progress: summary.progress,
+      status: summary.status,
+    };
+  });
+}
+
 function normalizeFilters(filters: TaskFilters = {}) {
   return {
     search: filters.search?.trim().toLowerCase(),
@@ -158,7 +189,7 @@ function normalizeFilters(filters: TaskFilters = {}) {
 
 export async function findAllTasks(filters: TaskFilters = {}): Promise<Task[]> {
   const normalized = normalizeFilters(filters);
-  const tasks = (await fetchTaskRows()).map(mapTask);
+  const tasks = await applyChecklistState((await fetchTaskRows()).map(mapTask));
 
   return tasks.filter((task) => {
     if (normalized.search) {
@@ -211,7 +242,10 @@ export async function findTaskById(id: number): Promise<Task | null> {
     .maybeSingle();
 
   if (error) throw error;
-  return data ? mapTask(data as unknown as TaskRow) : null;
+  if (!data) return null;
+
+  const [task] = await applyChecklistState([mapTask(data as unknown as TaskRow)]);
+  return task ?? null;
 }
 
 export async function createTask(dto: CreateTaskDTO): Promise<number> {

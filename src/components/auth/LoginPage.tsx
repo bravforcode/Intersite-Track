@@ -217,13 +217,10 @@ export function LoginPage({ onLogin }: LoginPageProps) {
             transition={{ delay: 0.2, duration: 0.3 }}
             className="text-center"
           >
-            <h1 className="text-3xl font-serif font-semibold tracking-tight text-slate-900 leading-none">
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-900 leading-none">
               Intersite Track
             </h1>
-            <p
-              className="text-sky-800/70 text-sm mt-2 tracking-wide font-light"
-              style={{ fontFamily: "'Sarabun', sans-serif" }}
-            >
+            <p className="text-sky-800/70 text-sm mt-2 tracking-wide font-light">
               ระบบบริหารจัดการงาน
             </p>
           </motion.div>

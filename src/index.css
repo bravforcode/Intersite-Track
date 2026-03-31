@@ -4,8 +4,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: "Segoe UI Variable Text", "SF Pro Text", "Sarabun", ui-sans-serif, system-ui, sans-serif;
-  --font-serif: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --font-sans: "Noto Sans Thai", "Segoe UI Variable Text", "SF Pro Text", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Noto Sans Thai", ui-sans-serif, system-ui, sans-serif;
 
   /* Semantic Tokens for Premium Feel */
   --color-surface: var(--color-white);
@@ -70,7 +70,7 @@
 }
 
 body {
-  font-family: "Segoe UI Variable Text", "SF Pro Text", "Sarabun", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Noto Sans Thai", "Segoe UI Variable Text", "SF Pro Text", ui-sans-serif, system-ui, sans-serif;
   font-size: 1rem;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;

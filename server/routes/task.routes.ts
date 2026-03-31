@@ -13,7 +13,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 
-const isDev = process.env.NODE_ENV !== "production";
+const isDev = process.env.NODE_ENV !== "production" && !process.env.VERCEL;
 
 // ── Storage setup ──────────────────────────────────────────────────
 // Dev: save to local /uploads folder
