@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { getActivityByTaskId } from "../database/queries/activity.queries.js";
+import { getActivityByTaskId, getAllActivity } from "../database/queries/activity.queries.js";
 import { ensureTaskAccess } from "../utils/taskAccess.js";
 
 export async function getTaskActivity(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -12,6 +12,19 @@ export async function getTaskActivity(req: Request, res: Response, next: NextFun
     }
 
     const activity = await getActivityByTaskId(taskId);
+    res.json(activity);
+  } catch (err) { next(err); }
+}
+
+export async function getGlobalActivity(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (req.user?.role !== "admin") {
+      res.status(403).json({ error: "เฉพาะแอดมินเท่านั้นที่สามารถเข้าถึงส่วนนี้ได้" });
+      return;
+    }
+
+    const limit = Number(req.query.limit) || 50;
+    const activity = await getAllActivity(limit);
     res.json(activity);
   } catch (err) { next(err); }
 }

@@ -6,6 +6,8 @@ export const reportService = {
 
   getDateRangeReport: (start: string, end: string) =>
     api.get<Record<string, unknown>[]>(`/api/reports/by-date-range?start=${start}&end=${end}`),
+
+  getAnalytics: () => api.get<{ deptWorkload: any[], burnDown: any[] }>("/api/reports/analytics"),
 };
 
 export default reportService;

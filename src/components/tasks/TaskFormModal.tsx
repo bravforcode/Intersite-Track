@@ -22,6 +22,7 @@ export function TaskFormModal({ task, currentUser, onClose, onSave }: TaskFormMo
     status: task?.status || "pending",
     due_date: task?.due_date || "",
     assigned_user_ids: task?.assignments.map((a) => a.id) || [] as number[],
+    tags: task?.tags?.join(", ") || "",
   });
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -88,6 +89,7 @@ export function TaskFormModal({ task, currentUser, onClose, onSave }: TaskFormMo
         status: form.status as any,
         due_date: form.due_date,
         assigned_user_ids: form.assigned_user_ids,
+        tags: form.tags.split(",").map(t => t.trim()).filter(Boolean),
       };
       if (task) {
         await taskService.updateTask(task.id, payload);
@@ -163,6 +165,12 @@ export function TaskFormModal({ task, currentUser, onClose, onSave }: TaskFormMo
               <label className="block text-xs font-bold uppercase text-gray-400 mb-1">กำหนดส่ง *</label>
               <input type="date" className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#5A5A40] outline-none"
                 value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} required />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-xs font-bold uppercase text-gray-400 mb-1">แท็ก (คั่นด้วยเครื่องหมายจุลภาค ,)</label>
+              <input type="text" className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-[#5A5A40] outline-none"
+                placeholder="เช่น Bug, Frontend, API..."
+                value={form.tags} onChange={(e) => setForm({ ...form, tags: e.target.value })} />
             </div>
             <div className="md:col-span-2">
               <label className="block text-xs font-bold uppercase text-gray-400 mb-1">รายละเอียด</label>

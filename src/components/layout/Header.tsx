@@ -92,7 +92,7 @@ export function Header({
             className="bg-blue-600 text-white px-3 md:px-4 py-2 rounded-full text-xs md:text-sm font-medium flex items-center gap-1.5 shadow-md hover:bg-blue-700 hover:shadow-lg transition-all"
           >
             <Plus size={16} />
-            <span className="hidden sm:inline">เพิ่มเจ้าหน้าที่</span>
+            <span className="hidden sm:inline">เพิ่มพนักงาน</span>
           </motion.button>
         )}
       </div>

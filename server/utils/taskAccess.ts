@@ -35,8 +35,9 @@ export async function ensureTaskAccess(user: Express.Request["user"], taskId: nu
   }
 
   const isAssigned = task.assignments?.some((assignee) => assignee.id === user.id) ?? false;
+  const isCreator = task.created_by === user.id;
 
-  if (!isAssigned) {
+  if (!isAssigned && !isCreator) {
     return {
       ok: false,
       status: 403,

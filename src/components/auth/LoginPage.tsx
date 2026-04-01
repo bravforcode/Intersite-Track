@@ -20,7 +20,7 @@ interface QuickLoginAccount {
 
 const QUICK_LOGIN_ACCOUNTS: QuickLoginAccount[] = [
   {
-    label: "ผู้ดูแลระบบ (Admin)",
+    label: "แอดมิน (Admin)",
     subtitle: "admin@taskam.local",
     email: "admin@taskam.local",
     password: "admin123",
@@ -181,9 +181,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       }}
     >
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-28 -right-24 w-[28rem] h-[28rem] rounded-full bg-sky-300/25 blur-3xl" />
-        <div className="absolute -bottom-24 -left-24 w-[24rem] h-[24rem] rounded-full bg-blue-400/18 blur-3xl" />
-        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-[36rem] h-[36rem] rounded-full bg-white/40 blur-3xl" />
+        <div className="absolute -top-28 -right-24 w-md h-112 rounded-full bg-sky-300/25 blur-3xl" />
+        <div className="absolute -bottom-24 -left-24 w-[24rem] h-96 rounded-full bg-blue-400/18 blur-3xl" />
+        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-xl h-144 rounded-full bg-white/40 blur-3xl" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.4),transparent_40%)]" />
       </div>
 
@@ -191,9 +191,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         initial={{ opacity: 0, y: 28, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
-        className="relative bg-white/88 backdrop-blur-xl p-10 rounded-[2rem] shadow-2xl shadow-blue-500/12 w-full max-w-md ring-1 ring-blue-200/60"
+        className="relative bg-white/88 backdrop-blur-xl p-10 rounded-4xl shadow-2xl shadow-blue-500/12 w-full max-w-md ring-1 ring-blue-200/60"
       >
-        <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-sky-300/70 to-transparent" />
+        <div className="absolute inset-x-6 top-0 h-px bg-linear-to-r from-transparent via-sky-300/70 to-transparent" />
 
         <div className="flex flex-col items-center mb-10">
           <motion.div
@@ -345,7 +345,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                         whileHover={{ y: -1 }}
                         whileTap={{ scale: 0.99 }}
                         onClick={() => void handleQuickLogin(account)}
-                        className="w-full rounded-2xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-blue-50 px-4 py-3 text-left transition-all hover:border-blue-200 hover:shadow-md hover:shadow-blue-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full rounded-2xl border border-sky-100 bg-linear-to-r from-sky-50 via-white to-blue-50 px-4 py-3 text-left transition-all hover:border-blue-200 hover:shadow-md hover:shadow-blue-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div>

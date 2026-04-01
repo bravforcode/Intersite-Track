@@ -59,7 +59,12 @@ export const taskService = {
 
   getActivity: (taskId: number) => api.get<TaskActivity[]>(`/api/tasks/${taskId}/activity`),
 
+  getGlobalActivity: (limit: number = 50) =>
+    api.get<TaskActivity[]>(`/api/tasks/global/activity?limit=${limit}`),
+
   getChecklists: (taskId: number) => api.get<TaskChecklistRow[]>(`/api/tasks/${taskId}/checklists`),
+
+  getBlockers: (taskId: number) => api.get<Blocker[]>(`/api/tasks/${taskId}/blockers`),
 
   saveChecklists: (taskId: number, items: ChecklistItem[]) =>
     api.post<{ success: boolean; progress: number }>(`/api/tasks/${taskId}/checklists`, { items }),

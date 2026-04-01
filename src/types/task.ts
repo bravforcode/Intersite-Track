@@ -24,6 +24,10 @@ export interface Task {
   created_by?: number;
   creator_name: string;
   assignments: TaskAssignment[];
+  project_id?: number;
+  project_name?: string;
+  is_blocked?: boolean;
+  tags?: string[];
 }
 
 export interface TaskUpdate {

@@ -12,6 +12,7 @@ export interface User {
   role: "admin" | "staff";
   department_id: number | null;
   position: string | null;
+  line_user_id?: string | null;
   created_at: string;
   department_name?: string;
 }
@@ -25,6 +26,7 @@ export interface CreateUserDTO {
   role?: "admin" | "staff";
   department_id?: number | null;
   position?: string | null;
+  line_user_id?: string | null;
 }
 
 export interface UpdateUserDTO {
@@ -34,6 +36,7 @@ export interface UpdateUserDTO {
   role?: "admin" | "staff";
   department_id?: number | null;
   position?: string | null;
+  line_user_id?: string | null;
 }
 
 export interface UpdateOwnProfileDTO {
@@ -41,6 +44,7 @@ export interface UpdateOwnProfileDTO {
   first_name: string;
   last_name: string;
   position?: string | null;
+  line_user_id?: string | null;
 }
 
 interface UserRow {
@@ -53,6 +57,7 @@ interface UserRow {
   role: "admin" | "staff";
   department_id: number | null;
   position: string | null;
+  line_user_id: string | null;
   created_at: string;
   departments?:
     | { name: string | null }
@@ -78,6 +83,7 @@ function mapUser(row: UserRow): User {
     role: row.role,
     department_id: row.department_id,
     position: row.position,
+    line_user_id: row.line_user_id,
     created_at: row.created_at,
     department_name: department?.name ?? undefined,
   };
@@ -96,6 +102,7 @@ async function fetchUsersBase() {
       role,
       department_id,
       position,
+      line_user_id,
       created_at,
       departments:departments!users_department_id_fkey(name)
     `)
@@ -118,6 +125,7 @@ export async function findUserByUsername(username: string): Promise<User | null>
       role,
       department_id,
       position,
+      line_user_id,
       created_at,
       departments:departments!users_department_id_fkey(name)
     `)
@@ -141,6 +149,7 @@ export async function findUserById(id: number): Promise<User | null> {
       role,
       department_id,
       position,
+      line_user_id,
       created_at,
       departments:departments!users_department_id_fkey(name)
     `)
@@ -168,6 +177,7 @@ export async function createUser(dto: CreateUserDTO): Promise<number> {
       role: dto.role ?? "staff",
       department_id: dto.department_id ?? null,
       position: dto.position ?? null,
+      line_user_id: dto.line_user_id ?? null,
     })
     .select("id")
     .single();
@@ -189,6 +199,7 @@ export async function findUserByAuthId(authId: string): Promise<User | null> {
       role,
       department_id,
       position,
+      line_user_id,
       created_at,
       departments:departments!users_department_id_fkey(name)
     `)
@@ -208,6 +219,7 @@ export async function updateUser(id: number, dto: UpdateUserDTO): Promise<void> 
   if (dto.role !== undefined) payload.role = dto.role;
   if (dto.department_id !== undefined) payload.department_id = dto.department_id ?? null;
   if (dto.position !== undefined) payload.position = dto.position ?? null;
+  if (dto.line_user_id !== undefined) payload.line_user_id = dto.line_user_id ?? null;
 
   const { error } = await supabaseAdmin
     .from("users")
@@ -225,6 +237,7 @@ export async function updateOwnProfile(id: number, dto: UpdateOwnProfileDTO): Pr
       first_name: dto.first_name,
       last_name: dto.last_name,
       position: dto.position ?? null,
+      line_user_id: dto.line_user_id ?? null,
     })
     .eq("id", id);
 

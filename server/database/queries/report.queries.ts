@@ -1,5 +1,6 @@
-import { findAllTasks } from "./task.queries.js";
+import { findAllTasks, type Task } from "./task.queries.js";
 import { findAllUsers } from "./user.queries.js";
+import { supabaseAdmin } from "../../config/supabase.js";
 
 export interface StaffReportRow {
   id: number;
@@ -12,16 +13,28 @@ export interface StaffReportRow {
   completed: number;
   in_progress: number;
   pending: number;
+  overdue: number;
+  blocked: number;
+  owned_projects: number;
 }
 
 export async function getStaffReport(): Promise<StaffReportRow[]> {
-  const [users, tasks] = await Promise.all([findAllUsers(), findAllTasks()]);
+  const [users, tasks, projectsResult] = await Promise.all([
+    findAllUsers(),
+    findAllTasks(),
+    supabaseAdmin.from("projects").select("id, owner_id")
+  ]);
+
+  const projects = projectsResult.data ?? [];
+  const now = new Date().toISOString().split('T')[0];
 
   return users
     .map((user) => {
       const assignedTasks = tasks.filter(
         (task) => task.assignments?.some((assignment) => assignment.id === user.id) ?? false
       );
+
+      const userOwnedProjects = projects.filter(p => p.owner_id === user.id);
 
       return {
         id: user.id,
@@ -34,6 +47,9 @@ export async function getStaffReport(): Promise<StaffReportRow[]> {
         completed: assignedTasks.filter((task) => task.status === "completed").length,
         in_progress: assignedTasks.filter((task) => task.status === "in_progress").length,
         pending: assignedTasks.filter((task) => task.status === "pending").length,
+        overdue: assignedTasks.filter(t => t.due_date && t.due_date < now && t.status !== 'completed').length,
+        blocked: assignedTasks.filter(t => t.is_blocked).length,
+        owned_projects: userOwnedProjects.length,
       };
     })
     .sort((a, b) => b.total_tasks - a.total_tasks || a.id - b.id);
@@ -75,3 +91,57 @@ export async function getStats(): Promise<{
     cancelled: tasks.filter((task) => task.status === "cancelled").length,
   };
 }
+
+export async function getDepartmentWorkload(): Promise<any[]> {
+  const [tasks, departmentsResult] = await Promise.all([
+    findAllTasks(),
+    supabaseAdmin.from("departments").select("id, name")
+  ]);
+
+  const departments = departmentsResult.data ?? [];
+  
+  return departments.map(dept => {
+    const deptTasks = tasks.filter(t => {
+      // Find if any assignee is in this department
+      // This is a simplification, ideally we'd join but findAllTasks returns mapped objects
+      // We'll need to check the department_name in the assignments if available
+      // or we just use the user's department.
+      // For now, let's assume we want to know tasks per department based on the creator's department 
+      // or better, based on the project's department if it existed.
+      // Let's use the users' department who are assigned to the task.
+      return t.assignments?.some(a => (a as any).department_name === dept.name);
+    });
+
+    return {
+      department: dept.name,
+      total: deptTasks.length,
+      completed: deptTasks.filter(t => t.status === 'completed').length,
+      inProgress: deptTasks.filter(t => t.status === 'in_progress').length,
+    };
+  });
+}
+
+export async function getBurnDownData(days: number = 30): Promise<any[]> {
+  const tasks = await findAllTasks();
+  const result = [];
+  const now = new Date();
+  
+  for (let i = days; i >= 0; i--) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - i);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    // Count tasks that were NOT completed by this date
+    const remaining = tasks.filter((t: Task) => {
+      if (t.status === 'cancelled') return false;
+      if (t.status !== 'completed') return true;
+      // If completed, check if it was completed AFTER this date
+      return t.updated_at > date.toISOString();
+    }).length;
+
+    result.push({ date: dateStr, remaining });
+  }
+  
+  return result;
+}
+

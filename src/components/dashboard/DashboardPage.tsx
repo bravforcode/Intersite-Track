@@ -156,7 +156,7 @@ export function DashboardPage({ user, onViewTask, onViewAll, refreshTrigger }: D
               <div
                 key={task.id}
                 onClick={() => onViewTask(task)}
-                className="flex items-center justify-between p-4 rounded-2xl hover:bg-[var(--app-surface-muted)] transition-colors border border-transparent hover:border-gray-100 cursor-pointer group"
+                className="flex items-center justify-between p-4 rounded-2xl hover:bg-(--app-surface-muted) transition-colors border border-transparent hover:border-gray-100 cursor-pointer group"
               >
                 <div className="flex items-center gap-4">
                   <div
@@ -196,7 +196,7 @@ export function DashboardPage({ user, onViewTask, onViewAll, refreshTrigger }: D
           {user.role === "admin" && (
             <div className="space-y-6">
               <div className="app-surface rounded-3xl p-6">
-                <h3 className="text-lg font-serif font-bold app-heading mb-4">ศูนย์ควบคุมผู้ดูแล</h3>
+                <h3 className="text-lg font-serif font-bold app-heading mb-4">ศูนย์ควบคุมแอดมิน</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="rounded-2xl bg-rose-50 px-4 py-4">
                     <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-rose-500/80 mb-2">งานเร่งด่วน</p>
@@ -241,7 +241,7 @@ export function DashboardPage({ user, onViewTask, onViewAll, refreshTrigger }: D
               </div>
 
               <div className="app-surface rounded-3xl p-6">
-                <h3 className="text-lg font-serif font-bold app-heading mb-4">เจ้าหน้าที่</h3>
+                <h3 className="text-lg font-serif font-bold app-heading mb-4">พนักงาน</h3>
                 <div className="space-y-4">
                 {staffLoading && users.length === 0 && (
                   <>
@@ -277,7 +277,7 @@ export function DashboardPage({ user, onViewTask, onViewAll, refreshTrigger }: D
                   ))}
 
                 {!staffLoading && users.filter((u) => u.role === "staff").length === 0 && (
-                  <p className="text-sm app-soft">ยังไม่มีเจ้าหน้าที่ในระบบ</p>
+                  <p className="text-sm app-soft">ยังไม่มีพนักงานในระบบ</p>
                 )}
               </div>
             </div>

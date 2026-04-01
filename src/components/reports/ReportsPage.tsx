@@ -1,12 +1,37 @@
 import { useState, useEffect } from "react";
-import { Download } from "lucide-react";
+import { Download, BarChart3, TrendingDown, PieChart } from "lucide-react";
 import { motion } from "motion/react";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+} from "chart.js";
+import { Line, Bar } from "react-chartjs-2";
 import { DashboardSkeleton } from "../common/Skeleton";
 import { taskService } from "../../services/taskService";
 import { reportService } from "../../services/reportService";
 import { formatDate } from "../../utils/formatters";
 import { statusColor, statusLabel } from "../../utils/constants";
 import type { Stats, StaffReport } from "../../types";
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 interface ReportsPageProps {
   refreshTrigger?: number; // Used by App to trigger refresh
@@ -18,16 +43,19 @@ export function ReportsPage({ refreshTrigger = 0 }: ReportsPageProps) {
   const [staffReport, setStaffReport] = useState<StaffReport[]>([]);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [dateReport, setDateReport] = useState<Record<string, unknown>[]>([]);
+  const [analytics, setAnalytics] = useState<{ deptWorkload: any[], burnDown: any[] }>({ deptWorkload: [], burnDown: [] });
 
   const fetchAll = async () => {
     try {
       setLoading(true);
-      const [s, sr] = await Promise.all([
+      const [s, sr, a] = await Promise.all([
         taskService.getStats(),
-        reportService.getStaffReport()
+        reportService.getStaffReport(),
+        reportService.getAnalytics()
       ]);
       setStats(s);
       setStaffReport(sr);
+      setAnalytics(a);
     } catch (error) {
       console.error("Failed to load reports data", error);
     } finally {
@@ -61,14 +89,53 @@ export function ReportsPage({ refreshTrigger = 0 }: ReportsPageProps) {
     { label: "ยกเลิก", value: stats.cancelled, tone: "text-rose-600" },
   ];
 
+  const burnDownData = {
+    labels: analytics.burnDown.map(d => formatDate(d.date)),
+    datasets: [
+      {
+        label: "งานที่ยังไม่เสร็จ",
+        data: analytics.burnDown.map(d => d.remaining),
+        borderColor: "rgb(255, 99, 132)",
+        backgroundColor: "rgba(255, 99, 132, 0.5)",
+        tension: 0.3,
+      },
+    ],
+  };
+
+  const workloadData = {
+    labels: analytics.deptWorkload.map(d => d.department),
+    datasets: [
+      {
+        label: "งานทั้งหมด",
+        data: analytics.deptWorkload.map(d => d.total),
+        backgroundColor: "rgba(54, 162, 235, 0.5)",
+      },
+      {
+        label: "เสร็จแล้ว",
+        data: analytics.deptWorkload.map(d => d.completed),
+        backgroundColor: "rgba(75, 192, 192, 0.5)",
+      },
+    ],
+  };
+
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-8">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-serif font-bold app-heading">สรุปรายงาน</h3>
-        <button onClick={() => window.open("/api/reports/export-csv", "_blank")}
-          className="flex items-center gap-2 bg-[#5A5A40] text-white px-4 py-2 rounded-xl text-sm font-medium shadow-md hover:bg-[#4A4A30] transition-colors">
-          <Download size={18} /> ส่งออก CSV
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => window.open("/api/reports/export-csv", "_blank")}
+            className="flex items-center gap-2 bg-white border border-[#5A5A40] text-[#5A5A40] px-4 py-2 rounded-xl text-sm font-medium shadow-sm hover:bg-gray-50 transition-colors">
+            <Download size={18} /> ส่งออก CSV
+          </button>
+          <button onClick={() => window.open("/api/reports/export-pdf", "_blank")}
+            className="flex items-center gap-2 bg-[#5A5A40] text-white px-4 py-2 rounded-xl text-sm font-medium shadow-md hover:bg-[#4A4A30] transition-colors">
+            <Download size={18} /> รายงานงาน (PDF)
+          </button>
+          <button onClick={() => window.open("/api/reports/export-staff-pdf", "_blank")}
+            className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-md hover:bg-indigo-700 transition-colors">
+            <Download size={18} /> รายงานบุคลากร (PDF)
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
@@ -78,6 +145,42 @@ export function ReportsPage({ refreshTrigger = 0 }: ReportsPageProps) {
             <p className={`text-2xl font-serif font-bold ${item.tone}`}>{item.value}</p>
           </div>
         ))}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="app-surface rounded-3xl p-6">
+          <div className="flex items-center gap-2 mb-6">
+            <TrendingDown className="text-rose-500" size={20} />
+            <h4 className="text-sm font-bold uppercase tracking-wider app-soft">Burn-down Chart (14 วันล่าสุด)</h4>
+          </div>
+          <div className="h-64">
+            <Line 
+              data={burnDownData} 
+              options={{ 
+                responsive: true, 
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+              }} 
+            />
+          </div>
+        </div>
+
+        <div className="app-surface rounded-3xl p-6">
+          <div className="flex items-center gap-2 mb-6">
+            <BarChart3 className="text-blue-500" size={20} />
+            <h4 className="text-sm font-bold uppercase tracking-wider app-soft">ภาระงานแยกตามหน่วยงาน</h4>
+          </div>
+          <div className="h-64">
+            <Bar 
+              data={workloadData} 
+              options={{ 
+                responsive: true, 
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+              }} 
+            />
+          </div>
+        </div>
       </div>
 
       <div className="app-surface rounded-3xl p-6">
@@ -129,7 +232,7 @@ export function ReportsPage({ refreshTrigger = 0 }: ReportsPageProps) {
               {staffReport.map((s) => {
                 const pct = s.total_tasks > 0 ? Math.round((s.completed / s.total_tasks) * 100) : 0;
                 return (
-                  <tr key={s.id} className="hover:bg-[var(--app-surface-muted)] transition-colors">
+                  <tr key={s.id} className="hover:bg-(--app-surface-muted) transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-full bg-[#F5F5F0] flex items-center justify-center text-[#5A5A40] font-bold text-xs">
@@ -140,7 +243,7 @@ export function ReportsPage({ refreshTrigger = 0 }: ReportsPageProps) {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${s.role === "admin" ? "bg-violet-100 text-violet-700" : "bg-blue-100 text-blue-700"}`}>
-                        {s.role === "admin" ? "ผู้ดูแลระบบ" : "เจ้าหน้าที่"}
+                        {s.role === "admin" ? "แอดมิน" : "พนักงาน"}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm app-muted">{s.department_name || "-"}</td>
@@ -192,7 +295,7 @@ export function ReportsPage({ refreshTrigger = 0 }: ReportsPageProps) {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {dateReport.map((r, i) => (
-                  <tr key={i} className="hover:bg-[var(--app-surface-muted)] transition-colors">
+                  <tr key={i} className="hover:bg-(--app-surface-muted) transition-colors">
                     <td className="px-4 py-3 text-sm app-heading">{formatDate(r.date as string)}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-bold px-2 py-1 rounded ${statusColor[r.status as string]}`}>{statusLabel[r.status as string]}</span>

@@ -10,9 +10,11 @@ import {
   ImagePlus,
   MessageSquare,
   History,
+  AlertTriangle,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { taskService } from "../../services/taskService";
+import { projectService } from "../../services/projectService";
 import { taskTypeService } from "../../services/taskTypeService";
 import { formatDate, formatDateTime } from "../../utils/formatters";
 import { priorityLabel, priorityColor, statusLabel, statusDot } from "../../utils/constants";
@@ -24,6 +26,7 @@ import type {
   TaskComment,
   TaskActivity,
   ChecklistItem,
+  Blocker,
 } from "../../types";
 
 interface TaskDetailModalProps {
@@ -49,6 +52,7 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
   const [updates, setUpdates] = useState<TaskUpdate[]>([]);
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [activity, setActivity] = useState<TaskActivity[]>([]);
+  const [blockers, setBlockers] = useState<Blocker[]>([]);
   const [newUpdate, setNewUpdate] = useState({ text: "", progress: task.progress });
   const [newComment, setNewComment] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -60,9 +64,16 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
   const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
 
   useEffect(() => {
-    void Promise.all([fetchUpdates(), fetchChecklist(), fetchComments(), fetchActivity()]);
+    void Promise.all([fetchUpdates(), fetchChecklist(), fetchComments(), fetchActivity(), fetchBlockers()]);
     void taskTypeService.getTaskTypes().then(setTaskTypes).catch(() => {});
   }, [task.id]);
+
+  const fetchBlockers = async () => {
+    try {
+      const data = await taskService.getBlockers(task.id);
+      setBlockers(data);
+    } catch {}
+  };
 
   const fetchChecklist = async () => {
     try {
@@ -518,6 +529,50 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
               </div>
             </div>
 
+            <div className="bg-red-50 p-6 rounded-3xl border border-red-100 space-y-4">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-red-600 mb-2 flex items-center gap-2">
+                <AlertTriangle size={14} /> ปัญหาที่ติดขัด (Blockers)
+              </h4>
+              <div className="space-y-3">
+                {blockers.map((b) => (
+                  <div key={b.id} className={`p-3 rounded-xl border ${b.status === 'active' ? 'bg-white border-red-200 shadow-sm' : 'bg-gray-100 border-gray-200 opacity-60'}`}>
+                    <div className="flex justify-between items-start mb-1">
+                      <span className={`text-[10px] font-bold uppercase ${b.status === 'active' ? 'text-red-600' : 'text-gray-500'}`}>
+                        {b.status === 'active' ? 'กำลังติดปัญหา' : 'แก้ไขแล้ว'}
+                      </span>
+                      <span className="text-[10px] text-gray-400">{formatDate(b.created_at)}</span>
+                    </div>
+                    <p className="text-xs text-gray-700 mb-2">{b.description}</p>
+                    {b.status === 'active' && (
+                      <button 
+                        onClick={async () => {
+                          await projectService.resolveBlocker(b.id);
+                          await fetchBlockers();
+                          await fetchActivity();
+                        }}
+                        className="text-[10px] text-red-600 font-bold hover:underline"
+                      >
+                        ปลดล็อกปัญหานี้
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {blockers.length === 0 && <p className="text-xs text-gray-400 italic">ไม่มีปัญหาที่ติดขัด</p>}
+              </div>
+              <button 
+                onClick={() => {
+                  const desc = prompt("ระบุปัญหาที่พบ:");
+                  if (desc) {
+                    projectService.addBlocker(task.project_id || 0, { task_id: task.id, description: desc })
+                      .then(() => { fetchBlockers(); fetchActivity(); });
+                  }
+                }}
+                className="w-full py-2 bg-red-600 text-white rounded-xl text-xs font-bold hover:bg-red-700 transition-colors"
+              >
+                แจ้งปัญหาที่พบ
+              </button>
+            </div>
+
             <div className="bg-[#5A5A40] p-6 rounded-3xl text-white shadow-lg shadow-[#5A5A40]/20">
               <h4 className="text-xs font-bold uppercase tracking-wider text-white/60 mb-4">ความคืบหน้ารวม</h4>
               <div className="flex items-end justify-between mb-2">
@@ -533,7 +588,7 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
               <h4 className="text-xs font-bold uppercase tracking-wider app-soft mb-4 flex items-center gap-1.5">
                 <History size={14} /> ประวัติการเปลี่ยนแปลง
               </h4>
-              <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
+              <div className="space-y-3 max-h-90 overflow-y-auto pr-1">
                 {activity.map((entry) => (
                   <div key={entry.id} className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm">
                     <div className="flex items-center justify-between gap-3 mb-2">

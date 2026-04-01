@@ -1,9 +1,9 @@
-export function formatDate(d: string): string {
+export function formatDate(d?: string): string {
   if (!d) return "-";
   return new Date(d).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" });
 }
 
-export function formatDateTime(d: string): string {
+export function formatDateTime(d?: string): string {
   if (!d) return "-";
   return new Date(d).toLocaleString("th-TH", {
     year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",

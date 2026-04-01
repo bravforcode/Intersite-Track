@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { Plus, Edit3, Trash2, X, CheckCircle2, Settings, Tag, ArrowLeftRight, FileText } from "lucide-react";
+import { Plus, Edit3, Trash2, X, CheckCircle2, Settings, Tag, ArrowLeftRight, FileText, ClipboardList } from "lucide-react";
 import { motion } from "motion/react";
 import { TasksSkeleton } from "../common/Skeleton";
 import { userService } from "../../services/userService";
+import { taskService } from "../../services/taskService";
 import { taskTypeService } from "../../services/taskTypeService";
 import TrelloSettings from "./TrelloSettings";
 import TrelloSyncLogs from "./TrelloSyncLogs";
@@ -17,8 +18,9 @@ export function SettingsPage({ refreshTrigger = 0 }: SettingsPageProps) {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [taskTypes, setTaskTypes] = useState<TaskType[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
-  const [tab, setTab] = useState<"departments" | "taskTypes" | "trello" | "trelloLogs">("departments");
+  const [tab, setTab] = useState<"departments" | "taskTypes" | "trello" | "trelloLogs" | "auditLogs">("departments");
   const [newDeptName, setNewDeptName] = useState("");
   const [editingDept, setEditingDept] = useState<Department | null>(null);
   const [newTypeName, setNewTypeName] = useState("");
@@ -43,9 +45,24 @@ export function SettingsPage({ refreshTrigger = 0 }: SettingsPageProps) {
     }
   };
 
+  const fetchAuditLogs = async () => {
+    try {
+      const logs = await taskService.getGlobalActivity(100);
+      setAuditLogs(logs);
+    } catch (err) {
+      console.error("Failed to load audit logs", err);
+    }
+  };
+
   useEffect(() => {
     fetchAll();
   }, [refreshTrigger]);
+
+  useEffect(() => {
+    if (tab === "auditLogs") {
+      fetchAuditLogs();
+    }
+  }, [tab]);
 
   if (loading) return <TasksSkeleton />;
 
@@ -87,7 +104,7 @@ export function SettingsPage({ refreshTrigger = 0 }: SettingsPageProps) {
 
   const tabBtn = (key: typeof tab, icon: React.ReactNode, label: string) => (
     <button onClick={() => setTab(key)}
-      className={`px-6 py-2 rounded-xl text-sm font-medium transition-colors ${tab === key ? "bg-[#5A5A40] text-white" : "app-surface app-muted hover:bg-[var(--app-surface-muted)]"}`}>
+      className={`px-6 py-2 rounded-xl text-sm font-medium transition-colors ${tab === key ? "bg-[#5A5A40] text-white" : "app-surface app-muted hover:bg-(--app-surface-muted)"}`}>
       {icon} {label}
     </button>
   );
@@ -104,11 +121,11 @@ export function SettingsPage({ refreshTrigger = 0 }: SettingsPageProps) {
           <p className="text-2xl font-serif font-bold text-sky-600">{taskTypes.length}</p>
         </div>
         <div className="app-surface-subtle rounded-2xl px-5 py-4">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] app-soft mb-2">เจ้าหน้าที่</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] app-soft mb-2">พนักงาน</p>
           <p className="text-2xl font-serif font-bold text-amber-600">{users.filter((u) => u.role === "staff").length}</p>
         </div>
         <div className="app-surface-subtle rounded-2xl px-5 py-4">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] app-soft mb-2">ผู้ดูแลระบบ</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] app-soft mb-2">แอดมิน</p>
           <p className="text-2xl font-serif font-bold text-violet-600">{users.filter((u) => u.role === "admin").length}</p>
         </div>
       </div>
@@ -118,6 +135,7 @@ export function SettingsPage({ refreshTrigger = 0 }: SettingsPageProps) {
         {tabBtn("taskTypes", <Tag size={16} className="inline mr-2" />, "ประเภทงาน")}
         {tabBtn("trello", <ArrowLeftRight size={16} className="inline mr-2" />, "Trello")}
         {tabBtn("trelloLogs", <FileText size={16} className="inline mr-2" />, "Sync Logs")}
+        {tabBtn("auditLogs", <ClipboardList size={16} className="inline mr-2" />, "Audit Logs")}
       </div>
 
       {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl border border-red-100">{error}</div>}
@@ -136,7 +154,7 @@ export function SettingsPage({ refreshTrigger = 0 }: SettingsPageProps) {
           </div>
           <div className="space-y-2">
             {departments.map((d) => (
-              <div key={d.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-[var(--app-surface-muted)] border border-gray-100">
+              <div key={d.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-(--app-surface-muted) border border-gray-100">
                 {editingDept?.id === d.id ? (
                   <input type="text" className="flex-1 px-3 py-1 rounded-lg border border-[#5A5A40] text-sm outline-none mr-3 app-field"
                     value={editingDept.name} onChange={(e) => setEditingDept({ ...editingDept, name: e.target.value })}
@@ -177,7 +195,7 @@ export function SettingsPage({ refreshTrigger = 0 }: SettingsPageProps) {
           </div>
           <div className="space-y-2">
             {taskTypes.map((t) => (
-              <div key={t.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-[var(--app-surface-muted)] border border-gray-100">
+              <div key={t.id} className="flex items-center justify-between p-3 rounded-xl hover:bg-(--app-surface-muted) border border-gray-100">
                 {editingType?.id === t.id ? (
                   <input type="text" className="flex-1 px-3 py-1 rounded-lg border border-[#5A5A40] text-sm outline-none mr-3 app-field"
                     value={editingType.name} onChange={(e) => setEditingType({ ...editingType, name: e.target.value })}
@@ -210,6 +228,50 @@ export function SettingsPage({ refreshTrigger = 0 }: SettingsPageProps) {
         <div className="app-surface rounded-3xl p-6">
           <h4 className="text-sm font-bold uppercase tracking-wider app-soft mb-4">ประวัติการซิงค์ Trello</h4>
           <TrelloSyncLogs />
+        </div>
+      )}
+
+      {tab === "auditLogs" && (
+        <div className="app-surface rounded-3xl p-6 overflow-hidden">
+          <div className="flex items-center justify-between mb-6">
+            <h4 className="text-sm font-bold uppercase tracking-wider app-soft">ประวัติการทำงาน (Audit Logs)</h4>
+            <button onClick={fetchAuditLogs} className="text-xs text-blue-600 hover:underline">รีเฟรช</button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="px-4 py-3 font-bold app-muted">วัน-เวลา</th>
+                  <th className="px-4 py-3 font-bold app-muted">ผู้ดำเนินการ</th>
+                  <th className="px-4 py-3 font-bold app-muted">การกระทำ</th>
+                  <th className="px-4 py-3 font-bold app-muted">งาน</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {auditLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 text-xs app-muted">
+                      {new Date(log.created_at).toLocaleString("th-TH")}
+                    </td>
+                    <td className="px-4 py-3 font-medium app-heading">{log.user_name}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        log.action === "CREATE" ? "bg-emerald-100 text-emerald-700" :
+                        log.action === "DELETE" ? "bg-red-100 text-red-700" :
+                        "bg-blue-100 text-blue-700"
+                      }`}>
+                        {log.action}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs app-soft truncate max-w-50" title={log.task_title}>
+                      {log.task_title}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {auditLogs.length === 0 && <p className="text-center py-8 app-soft">ไม่มีข้อมูลประวัติ</p>}
+          </div>
         </div>
       )}
     </motion.div>

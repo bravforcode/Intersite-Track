@@ -30,7 +30,7 @@ Supabase project: `eezrhwiwwsmarkvejeoi` (ap-southeast-1, "Intersite Track")
 
 ### Auth Flow (Supabase Auth)
 
-```
+```text
 Frontend                      Supabase Auth            Backend
 ─────────────                 ──────────────────       ────────────────
 1. signInWithPassword()   →   validate email+pw
@@ -52,7 +52,7 @@ Frontend                      Supabase Auth            Backend
 Layered MVC structure:
 
 | Layer | Path |
-|---|---|
+| --- | --- |
 | Entry & middleware | `server.ts`, `server/middleware/` |
 | Routes (aggregated) | `server/routes/index.ts` |
 | Controllers | `server/controllers/` |

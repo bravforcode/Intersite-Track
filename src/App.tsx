@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useState } from "react";
-import { LayoutDashboard, Users, ClipboardList, Bell, BarChart3, Database } from "lucide-react";
+import { LayoutDashboard, Users, ClipboardList, Bell, BarChart3, Database, Briefcase, BarChartHorizontal } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 
 import { supabase } from "./lib/supabase";
@@ -32,6 +32,12 @@ const UserFormModal = lazy(() =>
 const ReportsPage = lazy(() =>
   import("./components/reports/ReportsPage").then((module) => ({ default: module.ReportsPage }))
 );
+const ProjectsPage = lazy(() =>
+  import("./components/projects/ProjectsPage").then((module) => ({ default: module.ProjectsPage }))
+);
+const WorkloadPage = lazy(() =>
+  import("./components/dashboard/WorkloadPage").then((module) => ({ default: module.WorkloadPage }))
+);
 const NotificationsPage = lazy(() =>
   import("./components/notifications/NotificationsPage").then((module) => ({ default: module.NotificationsPage }))
 );
@@ -47,7 +53,7 @@ const ConfirmDialog = lazy(() =>
 
 function PageFallback() {
   return (
-    <div className="app-surface rounded-[2rem] p-6 text-sm app-soft">
+    <div className="app-surface rounded-4xl p-6 text-sm app-soft">
       กำลังโหลดเนื้อหา...
     </div>
   );
@@ -150,15 +156,17 @@ export default function App() {
 
   const tabs = [
     { key: "dashboard", label: "แดชบอร์ด", icon: <LayoutDashboard size={20} /> },
+    { key: "projects", label: "จัดการโปรเจกต์", icon: <Briefcase size={20} /> },
+    { key: "workload", label: "ภาระงานทีม", icon: <BarChartHorizontal size={20} /> },
     { key: "tasks", label: "จัดการงาน", icon: <ClipboardList size={20} /> },
-    ...(user.role === "admin" ? [{ key: "staff", label: "เจ้าหน้าที่", icon: <Users size={20} /> }] : []),
+    ...(user.role === "admin" ? [{ key: "staff", label: "พนักงาน", icon: <Users size={20} /> }] : []),
     { key: "reports", label: "รายงาน", icon: <BarChart3 size={20} /> },
     { key: "notifications", label: "การแจ้งเตือน", icon: <Bell size={20} /> },
     ...(user.role === "admin" ? [{ key: "settings", label: "ข้อมูลพื้นฐาน", icon: <Database size={20} /> }] : []),
   ];
 
   const tabTitles: Record<string, string> = {
-    dashboard: "แดชบอร์ด", tasks: "จัดการงาน", staff: "จัดการเจ้าหน้าที่",
+    dashboard: "แดชบอร์ด", projects: "จัดการโปรเจกต์", workload: "ภาระงานทีม", tasks: "จัดการงาน", staff: "จัดการพนักงาน",
     reports: "รายงาน", notifications: "การแจ้งเตือน", settings: "ข้อมูลพื้นฐาน",
   };
 
@@ -179,6 +187,20 @@ export default function App() {
                 onViewTask={setSelectedTask} onViewAll={() => setActiveTab("tasks")} refreshTrigger={refreshTrigger} />
             </React.Fragment>
           )}
+          {activeTab === "projects" && (
+            <React.Fragment key="projects">
+              <Suspense fallback={<PageFallback />}>
+                <ProjectsPage />
+              </Suspense>
+            </React.Fragment>
+          )}
+          {activeTab === "workload" && (
+            <React.Fragment key="workload">
+              <Suspense fallback={<PageFallback />}>
+                <WorkloadPage />
+              </Suspense>
+            </React.Fragment>
+          )}
           {activeTab === "tasks" && (
             <React.Fragment key="tasks">
               <Suspense fallback={<PageFallback />}>
@@ -191,7 +213,7 @@ export default function App() {
             <React.Fragment key="staff">
               <Suspense fallback={<PageFallback />}>
                 <StaffPage refreshTrigger={refreshTrigger} onEdit={(u) => { setEditingUser(u); setUserFormOpen(true); }}
-                  onDelete={(uid) => setConfirmDialog({ message: "ต้องการลบเจ้าหน้าที่นี้?", onConfirm: async () => { await userService.deleteUser(uid); triggerRefresh(); setConfirmDialog(null); } })} />
+                  onDelete={(uid) => setConfirmDialog({ message: "ต้องการลบพนักงานนี้?", onConfirm: async () => { await userService.deleteUser(uid); triggerRefresh(); setConfirmDialog(null); } })} />
               </Suspense>
             </React.Fragment>
           )}

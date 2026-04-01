@@ -39,6 +39,10 @@ export interface Task {
   created_by: number;
   creator_name: string;
   assignments?: TaskAssignment[];
+  project_id?: number | null;
+  project_name?: string;
+  tags?: string[];
+  is_blocked?: boolean;
 }
 
 export interface CreateTaskDTO {
@@ -48,6 +52,8 @@ export interface CreateTaskDTO {
   priority?: TaskPriority;
   due_date?: string | null;
   created_by: number;
+  project_id?: number | null;
+  tags?: string[];
 }
 
 export interface UpdateTaskDTO {
@@ -57,6 +63,8 @@ export interface UpdateTaskDTO {
   priority?: TaskPriority;
   status?: TaskStatus;
   due_date?: string | null;
+  project_id?: number | null;
+  tags?: string[];
 }
 
 interface TaskRow {
@@ -68,9 +76,13 @@ interface TaskRow {
   status: TaskStatus;
   due_date: string | null;
   progress: number;
+  tags?: string[];
   created_at: string;
   updated_at: string;
   created_by: number;
+  project_id: number | null;
+  project?: { name: string } | Array<{ name: string }> | null;
+  blockers?: any[];
   creator:
     | { first_name: string | null; last_name: string | null }
     | Array<{ first_name: string | null; last_name: string | null }>
@@ -89,6 +101,7 @@ function pickOne<T>(value: T | T[] | null | undefined): T | null {
 function mapTask(row: TaskRow): Task {
   const creator = pickOne(row.creator);
   const taskType = pickOne(row.task_type);
+  const project = pickOne(row.project);
   const creatorFirst = creator?.first_name ?? "";
   const creatorLast = creator?.last_name ?? "";
 
@@ -106,9 +119,13 @@ function mapTask(row: TaskRow): Task {
     updated_at: row.updated_at,
     created_by: row.created_by,
     creator_name: `${creatorFirst} ${creatorLast}`.trim(),
+    project_id: row.project_id,
+    project_name: project?.name ?? undefined,
+    tags: row.tags ?? [],
+    is_blocked: row.blockers?.some((b: any) => b.status === 'active' || b.status === 'open' || b.status === 'blocked') ?? false,
     assignments: (row.task_assignments ?? [])
       .map((assignment) => pickOne(assignment.user))
-      .filter((user): user is TaskAssignment => Boolean(user)),
+      .filter((u): u is TaskAssignment => u !== null),
   };
 }
 
@@ -124,9 +141,13 @@ async function fetchTaskRows() {
       status,
       due_date,
       progress,
+      tags,
       created_at,
       updated_at,
       created_by,
+      project_id,
+      project:projects(name),
+      blockers:blockers(id, status),
       creator:users!tasks_created_by_fkey(first_name,last_name),
       task_type:task_types!tasks_task_type_id_fkey(name),
       task_assignments(user:users!task_assignments_user_id_fkey(id,first_name,last_name))
@@ -234,6 +255,9 @@ export async function findTaskById(id: number): Promise<Task | null> {
       created_at,
       updated_at,
       created_by,
+      project_id,
+      project:projects(name),
+      blockers:blockers(id, status),
       creator:users!tasks_created_by_fkey(first_name,last_name),
       task_type:task_types!tasks_task_type_id_fkey(name),
       task_assignments(user:users!task_assignments_user_id_fkey(id,first_name,last_name))
@@ -258,6 +282,8 @@ export async function createTask(dto: CreateTaskDTO): Promise<number> {
       priority: dto.priority ?? "medium",
       due_date: dto.due_date ?? null,
       created_by: dto.created_by,
+      project_id: dto.project_id ?? null,
+      tags: dto.tags ?? [],
     })
     .select("id")
     .single();
@@ -277,6 +303,8 @@ export async function updateTask(id: number, dto: UpdateTaskDTO): Promise<void> 
   if (dto.priority !== undefined) payload.priority = dto.priority;
   if (dto.status !== undefined) payload.status = dto.status;
   if (dto.due_date !== undefined) payload.due_date = dto.due_date ?? null;
+  if (dto.project_id !== undefined) payload.project_id = dto.project_id ?? null;
+  if (dto.tags !== undefined) payload.tags = dto.tags;
 
   const { error } = await supabaseAdmin
     .from("tasks")
@@ -353,6 +381,17 @@ export async function setTaskAssignments(
     .insert(userIds.map((userId) => ({ task_id: taskId, user_id: userId })));
 
   if (insertError) throw insertError;
+}
+
+export async function getTaskBlockers(taskId: number): Promise<any[]> {
+  const { data, error } = await supabaseAdmin
+    .from("blockers")
+    .select("*, reporter:users!blockers_reported_by_fkey(id, first_name, last_name)")
+    .eq("task_id", taskId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function findAll(filters?: TaskFilters): Promise<Task[]> {

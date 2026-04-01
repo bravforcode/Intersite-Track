@@ -2,12 +2,14 @@ import { Request, Response, NextFunction } from "express";
 import {
   findAllTasks, findTaskById, createTask, updateTask, deleteTask,
   updateTaskStatus, getTaskAssignments, setTaskAssignments, getCurrentAssignments,
+  getTaskBlockers,
 } from "../database/queries/task.queries.js";
-import { findAllUsers } from "../database/queries/user.queries.js";
+import { findAllUsers, findUserById } from "../database/queries/user.queries.js";
 import { createNotification } from "../database/queries/notification.queries.js";
 import { supabaseAdmin } from "../config/supabase.js";
 import { createAuditLog } from "../utils/auditLogger.js";
 import { ensureTaskAccess } from "../utils/taskAccess.js";
+import { lineService } from "../services/line.service.js";
 
 const STATUS_THAI: Record<string, string> = {
   pending: "รอดำเนินการ", in_progress: "กำลังดำเนินการ",
@@ -74,15 +76,21 @@ export async function getTask(req: Request, res: Response, next: NextFunction): 
 /** POST /api/tasks */
 export async function createTaskHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { title, description, task_type_id, priority, due_date, created_by, assigned_user_ids } = req.body;
+    const { title, description, task_type_id, priority, due_date, created_by, assigned_user_ids, project_id } = req.body;
     if (!title) { res.status(400).json({ error: "กรุณาระบุชื่องาน" }); return; }
 
-    const taskId = await createTask({ title, description, task_type_id, priority, due_date, created_by });
+    const taskId = await createTask({ title, description, task_type_id, priority, due_date, created_by, project_id });
 
     if (assigned_user_ids?.length) {
       await setTaskAssignments(undefined, taskId, assigned_user_ids);
       for (const uid of assigned_user_ids) {
         await createNotification(uid, "งานใหม่", `คุณได้รับมอบหมายงาน: ${title}`, "task_assigned", taskId);
+        
+        // LINE Notification
+        const user = await findUserById(uid);
+        if (user?.line_user_id) {
+          await lineService.notifyNewTask(user.line_user_id, title);
+        }
       }
     }
 
@@ -102,9 +110,9 @@ export async function createTaskHandler(req: Request, res: Response, next: NextF
 export async function updateTaskHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const taskId = Number(req.params.id);
-    const { title, description, task_type_id, priority, status, due_date, assigned_user_ids } = req.body;
+    const { title, description, task_type_id, priority, status, due_date, assigned_user_ids, project_id } = req.body;
     const existingTask = await findTaskById(taskId);
-    await updateTask(taskId, { title, description, task_type_id, priority, status, due_date });
+    await updateTask(taskId, { title, description, task_type_id, priority, status, due_date, project_id });
 
     await createAuditLog(
       taskId,
@@ -121,9 +129,21 @@ export async function updateTaskHandler(req: Request, res: Response, next: NextF
         if (!currentIds.includes(uid)) {
           // New assignee: only send 'new task' notification
           await createNotification(uid, "งานใหม่", `คุณได้รับมอบหมายงาน: ${title}`, "task_assigned", taskId);
+          
+          // LINE Notification
+          const user = await findUserById(uid);
+          if (user?.line_user_id) {
+            await lineService.notifyNewTask(user.line_user_id, title);
+          }
         } else {
           // Existing assignee: send update notification
           await createNotification(uid, "แก้ไขงาน", `งาน "${title}" ได้รับการแก้ไข`, "task_updated", taskId);
+          
+          // LINE Notification
+          const user = await findUserById(uid);
+          if (user?.line_user_id) {
+            await lineService.sendMessage(user.line_user_id, `🔔 งาน "${title}" ได้รับการแก้ไข\n\nกรุณาเข้าตรวจสอบในระบบ`);
+          }
         }
       }
     }
@@ -150,7 +170,7 @@ export async function updateStatus(req: Request, res: Response, next: NextFuncti
 
     if (req.user?.role === "staff") {
       if (task.status === "cancelled") {
-        res.status(403).json({ error: "เจ้าหน้าที่ไม่สามารถเปลี่ยนสถานะงานที่ถูกยกเลิกแล้ว" });
+        res.status(403).json({ error: "พนักงานไม่สามารถเปลี่ยนสถานะงานที่ถูกยกเลิกแล้ว" });
         return;
       }
     }
@@ -170,6 +190,12 @@ export async function updateStatus(req: Request, res: Response, next: NextFuncti
         `งาน "${task.title}" เปลี่ยนสถานะเป็น: ${STATUS_THAI[status] || status}`,
         "status_changed", taskId
       );
+
+      // LINE Notification
+      const user = await findUserById(a.id);
+      if (user?.line_user_id) {
+        await lineService.sendMessage(user.line_user_id, `🔔 งาน "${task.title}" เปลี่ยนสถานะเป็น: ${STATUS_THAI[status] || status}\n\nกรุณาเข้าตรวจสอบในระบบ`);
+      }
     }
     res.json({ success: true });
   } catch (err) { next(err); }
@@ -184,5 +210,13 @@ export async function deleteTaskHandler(req: Request, res: Response, next: NextF
     }
     await deleteTask(Number(req.params.id));
     res.json({ success: true });
+  } catch (err) { next(err); }
+}
+
+export async function getBlockers(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const taskId = Number(req.params.id);
+    const blockers = await getTaskBlockers(taskId);
+    res.json(blockers);
   } catch (err) { next(err); }
 }

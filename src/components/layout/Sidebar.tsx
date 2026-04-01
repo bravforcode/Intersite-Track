@@ -25,7 +25,7 @@ export function Sidebar({ user, activeTab, onTabChange, onLogout, onProfileClick
   const content = (
     <aside className="w-64 text-slate-900 flex flex-col h-full bg-white/92 backdrop-blur-xl border-r border-sky-100 shadow-[0_24px_60px_rgba(37,99,235,0.10)]">
       <div className="p-6 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-[1rem] flex items-center justify-center bg-gradient-to-br from-sky-400 via-blue-500 to-blue-700 text-white shadow-lg shadow-blue-500/25">
+        <div className="w-9 h-9 rounded-2xl flex items-center justify-center bg-linear-to-br from-sky-400 via-blue-500 to-blue-700 text-white shadow-lg shadow-blue-500/25">
           <ClipboardList className="w-5 h-5" />
         </div>
         <div className="flex-1">
@@ -66,7 +66,7 @@ export function Sidebar({ user, activeTab, onTabChange, onLogout, onProfileClick
         ))}
       </nav>
 
-      <div className="p-4 mt-auto border-t border-sky-100 bg-gradient-to-b from-white to-sky-50/60">
+      <div className="p-4 mt-auto border-t border-sky-100 bg-linear-to-b from-white to-sky-50/60">
         <button
           onClick={onProfileClick}
           className="flex items-center gap-3 mb-4 px-2 w-full hover:bg-sky-50 rounded-xl py-2 transition-colors"
@@ -79,7 +79,7 @@ export function Sidebar({ user, activeTab, onTabChange, onLogout, onProfileClick
               {user.first_name || user.username}
             </p>
             <p className="text-xs text-slate-500">
-              {user.role === "admin" ? "ผู้ดูแลระบบ" : "เจ้าหน้าที่"}
+              {user.role === "admin" ? "แอดมิน" : "พนักงาน"}
             </p>
           </div>
         </button>
@@ -96,7 +96,7 @@ export function Sidebar({ user, activeTab, onTabChange, onLogout, onProfileClick
   return (
     <>
       {/* Desktop: always visible */}
-      <div className="hidden md:flex flex-shrink-0">
+      <div className="hidden md:flex shrink-0">
         {content}
       </div>
 

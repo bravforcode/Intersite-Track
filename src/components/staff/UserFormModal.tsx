@@ -20,6 +20,7 @@ export function UserFormModal({ user, onClose, onSave }: UserFormModalProps) {
     role: user?.role || "staff",
     department_id: user?.department_id ? String(user.department_id) : "",
     position: user?.position || "",
+    line_user_id: user?.line_user_id || "",
   });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -47,6 +48,7 @@ export function UserFormModal({ user, onClose, onSave }: UserFormModalProps) {
         role: form.role as "admin" | "staff",
         department_id: form.department_id ? Number(form.department_id) : null,
         position: form.position || null,
+        line_user_id: form.line_user_id || null,
       };
       if (user) {
         await userService.updateUser(user.id, payload);
@@ -68,7 +70,7 @@ export function UserFormModal({ user, onClose, onSave }: UserFormModalProps) {
       <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
         className="app-surface rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden">
         <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-xl font-serif font-bold app-heading">{user ? "แก้ไขเจ้าหน้าที่" : "เพิ่มเจ้าหน้าที่ใหม่"}</h3>
+          <h3 className="text-xl font-serif font-bold app-heading">{user ? "แก้ไขข้อมูลพนักงาน" : "เพิ่มพนักงานใหม่"}</h3>
           <button onClick={onClose} className="app-soft hover:text-[#1f1d16]"><X size={24} /></button>
         </div>
         {error && <div className="mx-6 mt-4 bg-red-50 text-red-600 text-sm p-3 rounded-xl border border-red-100">{error}</div>}
@@ -125,14 +127,20 @@ export function UserFormModal({ user, onClose, onSave }: UserFormModalProps) {
             <label className="block text-xs font-bold uppercase app-soft mb-1">บทบาท</label>
             <select className="w-full px-4 py-2 rounded-xl app-field"
               value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as "admin" | "staff" })}>
-              <option value="staff">เจ้าหน้าที่</option>
-              <option value="admin">ผู้ดูแลระบบ</option>
+              <option value="staff">พนักงาน</option>
+              <option value="admin">แอดมิน</option>
             </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold uppercase app-soft mb-1">LINE User ID</label>
+            <input type="text" className="w-full px-4 py-2 rounded-xl app-field"
+              placeholder="เช่น U1234567890..."
+              value={form.line_user_id} onChange={(e) => setForm({ ...form, line_user_id: e.target.value })} />
           </div>
           <div className="flex justify-end gap-3 mt-6">
             <button type="button" onClick={onClose} className="px-6 py-2 rounded-xl text-sm font-bold app-muted hover:bg-gray-100">ยกเลิก</button>
             <button type="submit" disabled={saving} className="px-6 py-2 bg-[#5A5A40] text-white rounded-xl text-sm font-bold shadow-lg hover:bg-[#4A4A30] disabled:opacity-50">
-              {saving ? "กำลังบันทึก..." : user ? "บันทึกการแก้ไข" : "เพิ่มเจ้าหน้าที่"}
+              {saving ? "กำลังบันทึก..." : user ? "บันทึกการแก้ไข" : "เพิ่มพนักงาน"}
             </button>
           </div>
         </form>

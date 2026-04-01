@@ -9,6 +9,7 @@ import apiRoutes from "./server/routes/index.js";
 import { notFound, errorHandler } from "./server/middleware/error.middleware.js";
 import { apiRateLimiter } from "./server/middleware/rateLimit.middleware.js";
 import { initDB } from "./server/database/init.js";
+import "./server/cron.js";
 
 dotenv.config();
 

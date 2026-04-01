@@ -156,7 +156,7 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
     <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="space-y-6">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="app-surface-subtle rounded-2xl px-5 py-4">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] app-soft mb-2">เจ้าหน้าที่ทั้งหมด</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] app-soft mb-2">พนักงานทั้งหมด</p>
           <p className="text-2xl font-serif font-bold text-[#5A5A40]">{totalStaff}</p>
         </div>
         <div className="app-surface-subtle rounded-2xl px-5 py-4">
@@ -164,7 +164,7 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
           <p className="text-2xl font-serif font-bold text-amber-600">{filteredStaff}</p>
         </div>
         <div className="app-surface-subtle rounded-2xl px-5 py-4">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] app-soft mb-2">ผู้ดูแลระบบ</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] app-soft mb-2">แอดมิน</p>
           <p className="text-2xl font-serif font-bold text-violet-600">{adminCount}</p>
         </div>
         <div className="app-surface-subtle rounded-2xl px-5 py-4">
@@ -176,7 +176,7 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
       <div className="app-surface p-4 rounded-2xl">
         <div className="relative w-full md:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 app-soft" size={18} />
-          <input type="text" placeholder="ค้นหาเจ้าหน้าที่..."
+          <input type="text" placeholder="ค้นหาพนักงาน..."
             className="w-full pl-10 pr-4 py-2 rounded-xl text-sm app-field"
             value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
@@ -192,7 +192,7 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
         <table className="w-full text-left">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-100">
-              <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider app-muted">เจ้าหน้าที่</th>
+              <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider app-muted">พนักงาน</th>
               <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider app-muted">ตำแหน่ง</th>
               <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider app-muted">หน่วยงาน</th>
               <th className="px-6 py-4 text-xs font-bold uppercase tracking-wider app-muted">บทบาท</th>
@@ -201,7 +201,7 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
           </thead>
           <tbody className="divide-y divide-gray-50">
             {staffUsers.map((u) => (
-              <tr key={u.id} className="hover:bg-[var(--app-surface-muted)] transition-colors">
+              <tr key={u.id} className="hover:bg-(--app-surface-muted) transition-colors">
                 <td className="px-6 py-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-[#F5F5F0] flex items-center justify-center text-[#5A5A40] font-bold text-sm">
@@ -261,8 +261,8 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
                         onChange={(e) => void saveRole(u, e.target.value as "admin" | "staff")}
                         onBlur={() => { if (inlineSaving !== u.id) setEditingRole(null); }}
                       >
-                        <option value="staff">เจ้าหน้าที่</option>
-                        <option value="admin">ผู้ดูแลระบบ</option>
+                        <option value="staff">พนักงาน</option>
+                        <option value="admin">แอดมิน</option>
                       </select>
                       <button onClick={() => setEditingRole(null)} className="p-1 app-soft hover:bg-gray-100 rounded-lg">
                         <X size={14} />
@@ -274,7 +274,7 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
                       title="คลิกเพื่อเปลี่ยนบทบาท"
                       onClick={() => { setEditingRole(u.id); setEditingPosition(null); }}
                     >
-                      {u.role === "admin" ? "ผู้ดูแลระบบ" : "เจ้าหน้าที่"}
+                      {u.role === "admin" ? "แอดมิน" : "พนักงาน"}
                     </span>
                   )}
                 </td>
@@ -300,7 +300,7 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
             ))}
           </tbody>
         </table>
-        {staffUsers.length === 0 && <div className="text-center py-16 app-soft">ไม่พบเจ้าหน้าที่</div>}
+        {staffUsers.length === 0 && <div className="text-center py-16 app-soft">ไม่พบพนักงาน</div>}
       </div>
 
       {/* Staff Detail Modal */}
@@ -324,7 +324,7 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
               <h4 className="text-xs font-bold uppercase tracking-wider app-soft mb-4">ประวัติการได้รับมอบหมายงาน</h4>
               <div className="space-y-3">
                 {(staffTasks[viewingStaff.id] || []).map((t) => (
-                  <div key={t.id} className="p-4 rounded-2xl border border-gray-100 hover:bg-[var(--app-surface-muted)]">
+                  <div key={t.id} className="p-4 rounded-2xl border border-gray-100 hover:bg-(--app-surface-muted)">
                     <div className="flex items-center justify-between mb-2">
                       <p className="font-medium text-sm app-heading">{t.title}</p>
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${statusColor[t.status]}`}>{statusLabel[t.status]}</span>

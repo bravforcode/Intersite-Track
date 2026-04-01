@@ -20,6 +20,7 @@ export function ProfileModal({ user, onClose, onSave }: ProfileModalProps) {
     role: user.role,
     department_id: user.department_id ?? (undefined as number | undefined),
     position: user.position ?? "",
+    line_user_id: user.line_user_id ?? "",
   });
   const [pwForm, setPwForm] = useState({ old_password: "", new_password: "", confirm_password: "" });
   const [error, setError] = useState("");
@@ -35,8 +36,10 @@ export function ProfileModal({ user, onClose, onSave }: ProfileModalProps) {
         first_name: form.first_name,
         last_name: form.last_name,
         position: form.position.trim() || null,
-      });
+        line_user_id: form.line_user_id.trim() || null,
+      } as any);
       onSave(updated);
+      setSuccess("บันทึกโปรไฟล์สำเร็จ");
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -69,9 +72,9 @@ export function ProfileModal({ user, onClose, onSave }: ProfileModalProps) {
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-white/95 rounded-[2rem] shadow-[0_28px_70px_rgba(37,99,235,0.16)] ring-1 ring-sky-100 w-full max-w-lg overflow-hidden"
+        className="bg-white/95 rounded-4xl shadow-[0_28px_70px_rgba(37,99,235,0.16)] ring-1 ring-sky-100 w-full max-w-lg overflow-hidden"
       >
-        <div className="p-6 border-b border-sky-100 flex items-center justify-between bg-gradient-to-r from-white via-sky-50/80 to-blue-50/70">
+        <div className="p-6 border-b border-sky-100 flex items-center justify-between bg-linear-to-r from-white via-sky-50/80 to-blue-50/70">
           <h3 className="text-xl font-serif font-bold">โปรไฟล์</h3>
           <button onClick={onClose} className="text-sky-400 hover:text-blue-600 transition-colors">
             <X size={24} />
@@ -126,6 +129,19 @@ export function ProfileModal({ user, onClose, onSave }: ProfileModalProps) {
                 value={form.position}
                 onChange={(e) => setForm({ ...form, position: e.target.value })}
               />
+            </div>
+            <div>
+              <label className="block text-xs font-bold uppercase text-gray-400 mb-1">LINE User ID</label>
+              <input
+                type="text"
+                className="w-full px-4 py-2.5 rounded-xl border border-sky-100 bg-sky-50/70 focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 outline-none transition-colors"
+                placeholder="เช่น U1234567890..."
+                value={form.line_user_id}
+                onChange={(e) => setForm({ ...form, line_user_id: e.target.value })}
+              />
+              <p className="text-[10px] text-slate-400 mt-1">
+                ใช้สำหรับรับการแจ้งเตือนผ่าน LINE Messaging API
+              </p>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button type="button" onClick={onClose} className="px-6 py-2 rounded-xl text-sm font-bold text-slate-500 hover:bg-sky-50 transition-colors">

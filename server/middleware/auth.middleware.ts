@@ -69,7 +69,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       .single<AppUserRow>();
 
     if (profileError || !appUser) {
-      res.status(401).json({ error: "ไม่พบข้อมูลผู้ใช้ กรุณาติดต่อผู้ดูแลระบบ" });
+      res.status(401).json({ error: "ไม่พบข้อมูลผู้ใช้ กรุณาติดต่อแอดมิน" });
       return;
     }
 

@@ -59,7 +59,15 @@ export function TaskCard({ task, onView, onEdit }: TaskCardProps) {
         <h4 className="font-serif font-bold text-lg app-heading mb-2 group-hover:text-[#5A5A40] transition-colors">
           {task.title}
         </h4>
-        <p className="text-sm app-muted line-clamp-2 mb-4">{task.description}</p>
+        <p className="text-sm app-muted line-clamp-2 mb-2">{task.description}</p>
+        
+        <div className="flex flex-wrap gap-1 mb-4">
+          {task.tags?.map((tag, idx) => (
+            <span key={idx} className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[10px] font-medium border border-blue-100">
+              {tag}
+            </span>
+          ))}
+        </div>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between text-xs mb-1">
