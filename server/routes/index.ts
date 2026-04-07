@@ -37,4 +37,17 @@ router.get("/settings/line-group", requireAuth, requireRole("admin"), async (req
   } catch (err) { next(err); }
 });
 
+// Temporary debug endpoint — remove after fixing
+router.get("/debug/firebase", async (req, res) => {
+  try {
+    const { adminAuth } = await import("../config/firebase-admin.js");
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const hasKey = !!process.env.FIREBASE_PRIVATE_KEY;
+    const keyStart = (process.env.FIREBASE_PRIVATE_KEY ?? "").substring(0, 30);
+    res.json({ ok: true, projectId, hasKey, keyStart });
+  } catch (err: any) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 export default router;

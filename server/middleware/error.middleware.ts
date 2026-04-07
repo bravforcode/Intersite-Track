@@ -23,13 +23,18 @@ export function errorHandler(
   const statusCode = err.statusCode || 500;
   const message = err.isOperational ? err.message : "เกิดข้อผิดพลาดในระบบ กรุณาลองใหม่อีกครั้ง";
 
-  logger.error(err.message, {
-    method: req.method,
-    path: req.path,
-    statusCode,
-    stack: err.stack,
-    user: req.user?.id
-  });
+  try {
+    logger.error(err.message, {
+      method: req.method,
+      path: req.path,
+      statusCode,
+      stack: err.stack,
+      user: req.user?.id
+    });
+  } catch {
+    // Ignore logging errors (e.g. read-only filesystem on Vercel)
+    process.stderr.write(`[ERROR] ${err.message}\n`);
+  }
 
   res.status(statusCode).json({
     error: message,
