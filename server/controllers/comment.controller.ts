@@ -5,7 +5,7 @@ import { ensureTaskAccess } from "../utils/taskAccess.js";
 
 export async function getTaskComments(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const taskId = Number(req.params.id);
+    const taskId = req.params.id;
     const access = await ensureTaskAccess(req.user, taskId);
     if (!access.ok) {
       res.status(access.status ?? 403).json({ error: access.error ?? "คุณไม่มีสิทธิ์เข้าถึงงานนี้" });
@@ -19,7 +19,7 @@ export async function getTaskComments(req: Request, res: Response, next: NextFun
 
 export async function addTaskComment(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const taskId = Number(req.params.id);
+    const taskId = req.params.id;
     const userId = req.user?.id;
     const message = String(req.body?.message ?? "").trim();
     const access = await ensureTaskAccess(req.user, taskId);

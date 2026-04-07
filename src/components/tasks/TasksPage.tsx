@@ -33,7 +33,7 @@ export function TasksPage({ currentUser, onViewTask, onEditTask, refreshTrigger 
     try {
       setLoading(true);
       const workspace = await taskService.getWorkspace(
-        currentUser.role === "staff" ? { user_id: String(currentUser.id) } : undefined
+        currentUser.role === "staff" ? { user_id: currentUser.id } : undefined
       );
       setTasks(workspace.tasks);
       setUsers(workspace.users);
@@ -54,7 +54,7 @@ export function TasksPage({ currentUser, onViewTask, onEditTask, refreshTrigger 
 
   if (loading) return <TasksSkeleton />;
 
-  const handleStatusChange = async (taskId: number, newStatus: string) => {
+  const handleStatusChange = async (taskId: string, newStatus: string) => {
     // Optimistic Update
     const previousTasks = [...tasks];
     setTasks(tasks.map(t => t.id === taskId ? { ...t, status: newStatus as any } : t));
@@ -71,16 +71,16 @@ export function TasksPage({ currentUser, onViewTask, onEditTask, refreshTrigger 
 
   const myTasks =
     currentUser.role === "staff"
-      ? tasks.filter((t) => t.assignments.some((a) => a.id === currentUser.id))
+      ? tasks.filter((t) => (t.assignments ?? []).some((a) => a.id === currentUser.id))
       : tasks;
 
   const filtered = myTasks.filter((t) => {
     if (filters.search && !t.title.toLowerCase().includes(filters.search.toLowerCase()) && !(t.description || "").toLowerCase().includes(filters.search.toLowerCase())) return false;
     if (filters.status && t.status !== filters.status) return false;
     if (filters.priority && t.priority !== filters.priority) return false;
-    if (filters.assignee && !t.assignments.some((a) => a.id === Number(filters.assignee))) return false;
-    if (filters.dateFrom && t.due_date < filters.dateFrom) return false;
-    if (filters.dateTo && t.due_date > filters.dateTo) return false;
+    if (filters.assignee && !(t.assignments ?? []).some((a) => a.id === filters.assignee)) return false;
+    if (filters.dateFrom && (t.due_date || "") < filters.dateFrom) return false;
+    if (filters.dateTo && (t.due_date || "") > filters.dateTo) return false;
     return true;
   });
 

@@ -1,21 +1,13 @@
-import pool from "./connection.js";
+import { db } from "./connection.js";
 
 /**
- * Verify database connectivity on startup.
- * Schema is managed via Supabase migrations (MCP apply_migration).
+ * Verify Firestore connectivity on startup.
  */
 export async function initDB(): Promise<void> {
-  // Vercel serverless runtime cannot reliably reach Supabase via the pg driver
-  // in this project, so the API uses Supabase Data API paths instead.
-  if (process.env.VERCEL) {
-    return;
-  }
-
-  const client = await pool.connect();
   try {
-    await client.query("SELECT 1");
-    console.warn("✅ Database connection verified");
-  } finally {
-    client.release();
+    await db.collection("_health").limit(1).get();
+    console.warn("✅ Firestore connection verified");
+  } catch (err) {
+    console.warn("⚠️ Firestore connection check failed:", err);
   }
 }

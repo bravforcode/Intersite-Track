@@ -11,6 +11,7 @@ import type {
   Stats,
   TaskWorkspace,
 } from "../types";
+import type { Blocker } from "../types/project";
 
 export interface TaskFilters {
   search?: string;
@@ -33,43 +34,43 @@ export const taskService = {
   getTasks: (filters?: TaskFilters) =>
     api.get<Task[]>(`/api/tasks${buildQuery(filters ?? {})}`),
 
-  getTask: (id: number) => api.get<Task>(`/api/tasks/${id}`),
+  getTask: (id: string) => api.get<Task>(`/api/tasks/${id}`),
 
   getWorkspace: (filters?: TaskFilters) =>
     api.get<TaskWorkspace>(`/api/tasks/workspace${buildQuery(filters ?? {})}`),
 
-  createTask: (dto: CreateTaskDTO) => api.post<{ id: number }>("/api/tasks", dto),
+  createTask: (dto: CreateTaskDTO) => api.post<{ id: string }>("/api/tasks", dto),
 
-  updateTask: (id: number, dto: UpdateTaskDTO) => api.put<void>(`/api/tasks/${id}`, dto),
+  updateTask: (id: string, dto: UpdateTaskDTO) => api.put<void>(`/api/tasks/${id}`, dto),
 
-  deleteTask: (id: number) => api.delete<void>(`/api/tasks/${id}`),
+  deleteTask: (id: string) => api.delete<void>(`/api/tasks/${id}`),
 
-  updateStatus: (id: number, status: string, progress?: number) =>
+  updateStatus: (id: string, status: string, progress?: number) =>
     api.patch<void>(`/api/tasks/${id}/status`, { status, ...(progress !== undefined && { progress }) }),
 
-  getUpdates: (taskId: number) => api.get<TaskUpdate[]>(`/api/tasks/${taskId}/updates`),
+  getUpdates: (taskId: string) => api.get<TaskUpdate[]>(`/api/tasks/${taskId}/updates`),
 
-  addUpdate: (taskId: number, data: { user_id: number; update_text: string; progress: number; attachment_url?: string }) =>
+  addUpdate: (taskId: string, data: { user_id: string; update_text: string; progress: number; attachment_url?: string }) =>
     api.post<void>(`/api/tasks/${taskId}/updates`, data),
 
-  getComments: (taskId: number) => api.get<TaskComment[]>(`/api/tasks/${taskId}/comments`),
+  getComments: (taskId: string) => api.get<TaskComment[]>(`/api/tasks/${taskId}/comments`),
 
-  addComment: (taskId: number, message: string) =>
+  addComment: (taskId: string, message: string) =>
     api.post<TaskComment>(`/api/tasks/${taskId}/comments`, { message }),
 
-  getActivity: (taskId: number) => api.get<TaskActivity[]>(`/api/tasks/${taskId}/activity`),
+  getActivity: (taskId: string) => api.get<TaskActivity[]>(`/api/tasks/${taskId}/activity`),
 
   getGlobalActivity: (limit: number = 50) =>
     api.get<TaskActivity[]>(`/api/tasks/global/activity?limit=${limit}`),
 
-  getChecklists: (taskId: number) => api.get<TaskChecklistRow[]>(`/api/tasks/${taskId}/checklists`),
+  getChecklists: (taskId: string) => api.get<TaskChecklistRow[]>(`/api/tasks/${taskId}/checklists`),
 
-  getBlockers: (taskId: number) => api.get<Blocker[]>(`/api/tasks/${taskId}/blockers`),
+  getBlockers: (taskId: string) => api.get<Blocker[]>(`/api/tasks/${taskId}/blockers`),
 
-  saveChecklists: (taskId: number, items: ChecklistItem[]) =>
+  saveChecklists: (taskId: string, items: ChecklistItem[]) =>
     api.post<{ success: boolean; progress: number }>(`/api/tasks/${taskId}/checklists`, { items }),
 
-  toggleChecklist: (taskId: number, checklistId: number) =>
+  toggleChecklist: (taskId: string, checklistId: string) =>
     api.patch<{ success: boolean; progress: number; status: string }>(`/api/tasks/${taskId}/checklists/${checklistId}/toggle`),
 
   getStats: () => api.get<Stats>("/api/stats"),

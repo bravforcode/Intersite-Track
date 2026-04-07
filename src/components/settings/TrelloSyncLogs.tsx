@@ -60,10 +60,10 @@ export default function TrelloSyncLogs() {
         </div>
         <div>
           <label className="block text-xs font-semibold app-soft uppercase tracking-wider mb-1">Task ID</label>
-          <input type="number" min={1} className="w-24 px-3 py-2 rounded-xl text-sm app-field"
-            placeholder="เช่น 42"
+          <input type="text" className="w-32 px-3 py-2 rounded-xl text-sm app-field"
+            placeholder="เช่น task-42"
             value={filters.taskId ?? ""}
-            onChange={e => updateFilters({ taskId: e.target.value ? Number(e.target.value) : undefined })} />
+            onChange={e => updateFilters({ taskId: e.target.value || undefined })} />
         </div>
         <button onClick={refresh} className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-200 text-sm app-muted hover:bg-gray-50 transition-colors">
           <RefreshCw size={14} className={loading ? "animate-spin" : ""} />

@@ -7,6 +7,7 @@ export async function handleLineWebhook(req: Request, res: Response): Promise<vo
   const events = req.body?.events ?? [];
   try {
     for (const event of events) {
+      logger.info(`LINE event: type=${event.type} source=${JSON.stringify(event.source)}`);
       if (event.type === "join" && event.source?.type === "group") {
         const groupId = event.source.groupId as string;
         await saveLineGroupId(groupId);

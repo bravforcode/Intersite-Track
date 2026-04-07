@@ -6,6 +6,7 @@ import type {
   TrelloMember,
   TrelloWebhook,
   CreateCardData,
+  CreateListData,
   UpdateCardData,
 } from '../types/trello.js';
 
@@ -127,6 +128,10 @@ export class TrelloAPIClient {
 
   async getBoardMembers(boardId: string): Promise<TrelloMember[]> {
     return this.request<TrelloMember[]>('GET', `/boards/${boardId}/members`);
+  }
+
+  async createList(data: CreateListData): Promise<TrelloList> {
+    return this.request<TrelloList>('POST', '/lists', data as unknown as Record<string, unknown>);
   }
 
   // ─── Webhook Operations ─────────────────────────────────────────────────────

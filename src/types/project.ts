@@ -8,10 +8,10 @@ export type RiskLevel = 'low' | 'medium' | 'high';
 export type MilestoneStatus = 'pending' | 'completed';
 
 export interface Project {
-  id: number;
+  id: string;
   name: string;
   description?: string;
-  owner_id?: number;
+  owner_id?: string;
   owner?: User;
   status: ProjectStatus;
   type: ProjectType;
@@ -35,8 +35,8 @@ export interface Project {
 }
 
 export interface ProjectMilestone {
-  id: number;
-  project_id: number;
+  id: string;
+  project_id: string;
   title: string;
   description?: string;
   due_date?: string;
@@ -45,11 +45,11 @@ export interface ProjectMilestone {
 }
 
 export interface Blocker {
-  id: number;
-  project_id?: number;
-  task_id?: number;
+  id: string;
+  project_id?: string;
+  task_id?: string;
   description: string;
-  reported_by?: number;
+  reported_by?: string;
   reporter?: User;
   status: BlockerStatus;
   resolved_at?: string;
@@ -57,9 +57,9 @@ export interface Blocker {
 }
 
 export interface ProjectWeeklyUpdate {
-  id: number;
-  project_id: number;
-  user_id?: number;
+  id: string;
+  project_id: string;
+  user_id?: string;
   user?: User;
   week_start_date: string;
   completed_this_week?: string;

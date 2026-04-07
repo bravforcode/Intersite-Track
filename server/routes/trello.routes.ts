@@ -12,6 +12,7 @@ import {
   saveUserMappingsHandler,
   getSyncLogsHandler,
   retrySyncForTask,
+  seedWeeklyProgressToBoard,
   webhookHandler,
 } from '../controllers/trello.controller.js';
 
@@ -34,5 +35,6 @@ router.get('/user-mappings', getUserMappingsHandler);
 router.post('/user-mappings', saveUserMappingsHandler);
 router.get('/sync-logs', getSyncLogsHandler);
 router.post('/retry/:taskId', retrySyncForTask);
+router.post('/seed-weekly-progress', seedWeeklyProgressToBoard);
 
 export default router;

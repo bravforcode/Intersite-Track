@@ -30,7 +30,7 @@ export function UpcomingTasks({ tasks, onViewTask }: UpcomingTasksProps) {
               whileHover={{ scale: 1.02, x: 4 }}
               key={t.id}
               onClick={() => onViewTask(t)}
-              className="p-3 rounded-xl app-surface-subtle hover:bg-[var(--app-surface-hover)] hover:border-black/5 cursor-pointer transition-colors"
+              className="p-3 rounded-xl app-surface-subtle hover:bg-(--app-surface-hover) hover:border-black/5 cursor-pointer transition-colors"
             >
               <p className="font-medium text-sm app-heading truncate">{t.title}</p>
               <div className="flex justify-between items-center mt-1">

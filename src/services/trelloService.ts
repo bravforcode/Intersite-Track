@@ -1,3 +1,4 @@
+import api from './api';
 import type {
   TrelloConfigDisplay,
   TrelloConfigForm,
@@ -12,74 +13,53 @@ import type {
 
 const BASE = '/api/trello';
 
-async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'เกิดข้อผิดพลาด' }));
-    throw new Error(err.error || 'เกิดข้อผิดพลาด');
-  }
-  return res.json();
-}
-
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 export function getConfig(): Promise<TrelloConfigDisplay | null> {
-  return apiFetch(`${BASE}/config`);
+  return api.get<TrelloConfigDisplay | null>(`${BASE}/config`);
 }
 
 export function saveConfig(form: TrelloConfigForm): Promise<TrelloConfigDisplay> {
-  return apiFetch(`${BASE}/config`, {
-    method: 'POST',
-    body: JSON.stringify({
-      apiKey: form.apiKey,
-      token: form.token,
-      boardId: form.boardId,
-      boardUrl: form.boardUrl,
-      enableAutoSync: form.enableAutoSync,
-      enableTwoWaySync: form.enableTwoWaySync,
-    }),
+  return api.post<TrelloConfigDisplay>(`${BASE}/config`, {
+    apiKey: form.apiKey,
+    token: form.token,
+    boardId: form.boardId,
+    boardUrl: form.boardUrl,
+    enableAutoSync: form.enableAutoSync,
+    enableTwoWaySync: form.enableTwoWaySync,
   });
 }
 
 export function testConnection(): Promise<TrelloConnectionTestResult> {
-  return apiFetch(`${BASE}/test-connection`, { method: 'POST' });
+  return api.post<TrelloConnectionTestResult>(`${BASE}/test-connection`, {});
 }
 
 // ─── Board ────────────────────────────────────────────────────────────────────
 
 export function getBoardLists(): Promise<TrelloListOption[]> {
-  return apiFetch(`${BASE}/board/lists`);
+  return api.get<TrelloListOption[]>(`${BASE}/board/lists`);
 }
 
 export function getBoardMembers(): Promise<TrelloMemberOption[]> {
-  return apiFetch(`${BASE}/board/members`);
+  return api.get<TrelloMemberOption[]>(`${BASE}/board/members`);
 }
 
 // ─── Mappings ─────────────────────────────────────────────────────────────────
 
 export function getStatusMappings(): Promise<StatusMappingEntry[]> {
-  return apiFetch(`${BASE}/status-mappings`);
+  return api.get<StatusMappingEntry[]>(`${BASE}/status-mappings`);
 }
 
 export function saveStatusMappings(mappings: StatusMappingEntry[]): Promise<StatusMappingEntry[]> {
-  return apiFetch(`${BASE}/status-mappings`, {
-    method: 'POST',
-    body: JSON.stringify({ mappings }),
-  });
+  return api.post<StatusMappingEntry[]>(`${BASE}/status-mappings`, { mappings });
 }
 
 export function getUserMappings(): Promise<UserMappingEntry[]> {
-  return apiFetch(`${BASE}/user-mappings`);
+  return api.get<UserMappingEntry[]>(`${BASE}/user-mappings`);
 }
 
 export function saveUserMappings(mappings: UserMappingEntry[]): Promise<UserMappingEntry[]> {
-  return apiFetch(`${BASE}/user-mappings`, {
-    method: 'POST',
-    body: JSON.stringify({ mappings }),
-  });
+  return api.post<UserMappingEntry[]>(`${BASE}/user-mappings`, { mappings });
 }
 
 // ─── Sync Logs ────────────────────────────────────────────────────────────────
@@ -93,9 +73,16 @@ export function getSyncLogs(filters: SyncLogFilters = {}): Promise<SyncLogPage> 
   if (filters.dateTo) params.set('dateTo', filters.dateTo);
   if (filters.page !== undefined) params.set('page', String(filters.page));
   if (filters.pageSize !== undefined) params.set('pageSize', String(filters.pageSize));
-  return apiFetch(`${BASE}/sync-logs?${params.toString()}`);
+  return api.get<SyncLogPage>(`${BASE}/sync-logs?${params.toString()}`);
 }
 
-export function retrySyncForTask(taskId: number): Promise<{ success: boolean; message: string }> {
-  return apiFetch(`${BASE}/retry/${taskId}`, { method: 'POST' });
+export function retrySyncForTask(taskId: string): Promise<{ success: boolean; message: string }> {
+  return api.post<{ success: boolean; message: string }>(`${BASE}/retry/${taskId}`, {});
+}
+
+export function seedWeeklyProgress(payload: { startWeek: number; startDate: string; endDate?: string }) {
+  return api.post<{ success: boolean; boardId: string; createdListsCount: number; createdCardsCount: number }>(
+    `${BASE}/seed-weekly-progress`,
+    payload
+  );
 }

@@ -8,7 +8,7 @@ interface TaskAccessResult {
   task?: Task;
 }
 
-export async function ensureTaskAccess(user: Express.Request["user"], taskId: number): Promise<TaskAccessResult> {
+export async function ensureTaskAccess(user: Express.Request["user"], taskId: string): Promise<TaskAccessResult> {
   if (!user) {
     return {
       ok: false,

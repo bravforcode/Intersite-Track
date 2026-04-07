@@ -1,18 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { supabaseAdmin } from "../config/supabase.js";
-
-interface AppUserRow {
-  id: number;
-  username: string;
-  role: string;
-  email: string | null;
-  auth_id: string | null;
-  first_name: string | null;
-  last_name: string | null;
-  department_id: number | null;
-  position: string | null;
-  created_at: string | null;
-}
+import { adminAuth, db } from "../config/firebase-admin.js";
 
 const AUTH_CACHE_TTL_MS = 30_000;
 const authCache = new Map<
@@ -32,17 +19,23 @@ setInterval(() => {
 }, 2 * 60_000);
 
 /**
- * Verify Supabase JWT and attach the mapped application user to req.user.
+ * Verify Firebase ID Token and attach the mapped application user to req.user.
  */
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  let token: string | undefined;
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.substring(7);
+  } else if (req.query.token && typeof req.query.token === "string") {
+    token = req.query.token;
+  }
+
+  if (!token) {
     res.status(401).json({ error: "กรุณาเข้าสู่ระบบก่อน" });
     return;
   }
 
-  const token = authHeader.substring(7);
   const cached = authCache.get(token);
 
   if (cached && cached.expiresAt > Date.now()) {
@@ -52,39 +45,30 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 
   try {
-    const {
-      data: { user: authUser },
-      error: authError,
-    } = await supabaseAdmin.auth.getUser(token);
+    const decodedToken = await adminAuth.verifyIdToken(token);
+    const uid = decodedToken.uid;
 
-    if (authError || !authUser) {
-      res.status(401).json({ error: "Token ไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่" });
-      return;
-    }
+    const userDoc = await db.collection("users").doc(uid).get();
 
-    const { data: appUser, error: profileError } = await supabaseAdmin
-      .from("users")
-      .select("id, username, role, email, auth_id, first_name, last_name, department_id, position, created_at")
-      .eq("auth_id", authUser.id)
-      .single<AppUserRow>();
-
-    if (profileError || !appUser) {
+    if (!userDoc.exists) {
       res.status(401).json({ error: "ไม่พบข้อมูลผู้ใช้ กรุณาติดต่อแอดมิน" });
       return;
     }
 
+    const appUser = userDoc.data()!;
+
     req.user = {
-      id: appUser.id,
-      userId: appUser.id,
-      authId: appUser.auth_id ?? authUser.id,
-      email: appUser.email,
-      username: appUser.username,
-      role: appUser.role,
+      id: uid,
+      userId: uid,
+      authId: uid,
+      email: appUser.email ?? null,
+      username: appUser.username ?? "",
+      role: appUser.role ?? "staff",
       first_name: appUser.first_name ?? "",
       last_name: appUser.last_name ?? "",
-      department_id: appUser.department_id,
+      department_id: appUser.department_id ?? null,
       department_name: null,
-      position: appUser.position,
+      position: appUser.position ?? null,
       created_at: appUser.created_at ?? undefined,
     };
 
@@ -95,7 +79,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     next();
   } catch {
-    res.status(401).json({ error: "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่" });
+    res.status(401).json({ error: "Token ไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่" });
   }
 }
 

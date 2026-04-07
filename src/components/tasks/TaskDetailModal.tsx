@@ -561,9 +561,13 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
               </div>
               <button 
                 onClick={() => {
+                  if (!task.project_id) {
+                    alert("งานนี้ยังไม่ได้ผูกกับโปรเจกต์ จึงไม่สามารถสร้าง blocker ได้");
+                    return;
+                  }
                   const desc = prompt("ระบุปัญหาที่พบ:");
                   if (desc) {
-                    projectService.addBlocker(task.project_id || 0, { task_id: task.id, description: desc })
+                    projectService.addBlocker(task.project_id, { task_id: task.id, description: desc })
                       .then(() => { fetchBlockers(); fetchActivity(); });
                   }
                 }}

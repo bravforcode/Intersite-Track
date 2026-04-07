@@ -4,16 +4,16 @@ export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 
 export interface TaskAssignment {
-  id: number;
+  id: string;
   first_name: string;
   last_name: string;
 }
 
 export interface Task {
-  id: number;
+  id: string;
   title: string;
   description: string;
-  task_type_id: number;
+  task_type_id: string;
   task_type_name?: string;
   priority: TaskPriority;
   status: TaskStatus;
@@ -21,19 +21,19 @@ export interface Task {
   progress: number;
   created_at: string;
   updated_at?: string;
-  created_by?: number;
+  created_by?: string;
   creator_name: string;
   assignments: TaskAssignment[];
-  project_id?: number;
+  project_id?: string;
   project_name?: string;
   is_blocked?: boolean;
   tags?: string[];
 }
 
 export interface TaskUpdate {
-  id: number;
-  task_id: number;
-  user_id: number;
+  id: string;
+  task_id: string;
+  user_id: string;
   update_text: string;
   progress: number;
   attachment_url?: string;
@@ -43,18 +43,18 @@ export interface TaskUpdate {
 }
 
 export interface TaskComment {
-  id: number;
-  task_id: number;
-  user_id: number;
+  id: string;
+  task_id: string;
+  user_id: string;
   message: string;
   created_at: string;
   user_name?: string;
 }
 
 export interface TaskActivity {
-  id: number;
-  task_id: number;
-  user_id: number | null;
+  id: string;
+  task_id: string;
+  user_id: string | null;
   action: string;
   old_data: Record<string, unknown> | null;
   new_data: Record<string, unknown> | null;
@@ -64,40 +64,40 @@ export interface TaskActivity {
 }
 
 export interface TaskChecklistRow {
-  id: number;
-  task_id: number;
-  parent_id: number | null;
+  id: string;
+  task_id: string;
+  parent_id: string | null;
   title: string;
   is_checked: boolean;
   sort_order: number;
-  checked_by?: number | null;
+  checked_by?: string | null;
   checked_at?: string | null;
   checked_by_name?: string | null;
 }
 
 export interface ChecklistChild {
-  id?: number;
+  id?: string;
   title: string;
   is_checked: boolean;
   sort_order: number;
-  checked_by?: number | null;
+  checked_by?: string | null;
   checked_at?: string | null;
   checked_by_name?: string | null;
 }
 
 export interface ChecklistItem {
-  id?: number;
+  id?: string;
   title: string;
   is_checked: boolean;
   sort_order: number;
-  checked_by?: number | null;
+  checked_by?: string | null;
   checked_at?: string | null;
   checked_by_name?: string | null;
   children: ChecklistChild[];
 }
 
 export interface TaskType {
-  id: number;
+  id: string;
   name: string;
 }
 
@@ -110,21 +110,21 @@ export interface TaskWorkspace {
 export interface CreateTaskDTO {
   title: string;
   description?: string;
-  task_type_id?: number | null;
+  task_type_id?: string | null;
   priority?: TaskPriority;
   due_date?: string;
-  created_by: number;
-  assigned_user_ids?: number[];
+  created_by: string;
+  assigned_user_ids?: string[];
 }
 
 export interface UpdateTaskDTO {
   title: string;
   description?: string;
-  task_type_id?: number | null;
+  task_type_id?: string | null;
   priority: TaskPriority;
   status: TaskStatus;
   due_date?: string;
-  assigned_user_ids?: number[];
+  assigned_user_ids?: string[];
 }
 
 export interface Stats {

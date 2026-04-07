@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "../config/supabase.js";
+import { db } from "../config/firebase-admin.js";
 import { getConfig } from "../database/queries/trello.queries.js";
 
 // ─── Loop prevention ──────────────────────────────────────────────────────────
@@ -124,12 +124,7 @@ export class TrelloWebhookHandler {
 
     if (!hasUpdates) return;
 
-    const { error } = await supabaseAdmin
-      .from("tasks")
-      .update(updates)
-      .eq("id", mapping.task_id);
-
-    if (error) throw error;
+    await db.collection("tasks").doc(mapping.task_id).update(updates);
 
     console.log(`[Webhook] Updated task ${mapping.task_id} from card ${cardId}`);
   }
@@ -146,39 +141,36 @@ export class TrelloWebhookHandler {
     const mapping = await this.getMappingByCardId(cardId);
     if (!mapping) return;
 
-    const isChecked = state === 'complete' ? 1 : 0;
+    const isChecked = state === 'complete';
 
-    const { error: checklistError } = await supabaseAdmin
-      .from("task_checklists")
-      .update({ is_checked: isChecked })
-      .eq("task_id", mapping.task_id)
-      .eq("title", checkItemName);
+    // Find and update the checklist item
+    const checklistSnapshot = await db.collection("task_checklists")
+      .where("task_id", "==", mapping.task_id)
+      .where("title", "==", checkItemName)
+      .limit(1)
+      .get();
 
-    if (checklistError) throw checklistError;
+    if (checklistSnapshot.empty) return;
+
+    const checklistDoc = checklistSnapshot.docs[0];
+    await checklistDoc.ref.update({ is_checked: isChecked });
 
     // Recalculate progress
-    const { data: allItems, error: allItemsError } = await supabaseAdmin
-      .from("task_checklists")
-      .select("is_checked")
-      .eq("task_id", mapping.task_id);
+    const allItemsSnapshot = await db.collection("task_checklists")
+      .where("task_id", "==", mapping.task_id)
+      .get();
 
-    if (allItemsError) throw allItemsError;
-
-    const total = (allItems ?? []).length;
-    const checked = (allItems ?? []).filter((row: any) => Number(row.is_checked) === 1).length;
+    const allItems = allItemsSnapshot.docs.map((d) => d.data());
+    const total = allItems.length;
+    const checked = allItems.filter((row) => row.is_checked).length;
     const pct = total > 0 ? Math.round((checked / total) * 100) : 0;
     const newStatus = pct >= 100 ? "completed" : pct > 0 ? "in_progress" : "pending";
 
-    const { error: taskError } = await supabaseAdmin
-      .from("tasks")
-      .update({
-        progress: pct,
-        status: newStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", mapping.task_id);
-
-    if (taskError) throw taskError;
+    await db.collection("tasks").doc(mapping.task_id).update({
+      progress: pct,
+      status: newStatus,
+      updated_at: new Date().toISOString(),
+    });
 
     console.log(`[Webhook] Updated checklist item "${checkItemName}" on task ${mapping.task_id}`);
   }
@@ -201,28 +193,27 @@ export class TrelloWebhookHandler {
       return;
     }
 
+    const taskDoc = db.collection("tasks").doc(mapping.task_id);
+    const taskSnapshot = await taskDoc.get();
+    if (!taskSnapshot.exists) return;
+
+    const assignees = taskSnapshot.data()?.assignees ?? [];
+
     if (op === "add") {
-      // Insert assignment if not already present
-      const { error } = await supabaseAdmin
-        .from("task_assignments")
-        .upsert(
-          { task_id: mapping.task_id, user_id: userId },
-          { onConflict: "task_id,user_id", ignoreDuplicates: true }
-        );
-
-      if (error) throw error;
-
-      console.log(`[Webhook] Added user ${userId} to task ${mapping.task_id}`);
+      // Add if not already present
+      if (!assignees.includes(userId)) {
+        assignees.push(userId);
+        await taskDoc.update({ assignees });
+        console.log(`[Webhook] Added user ${userId} to task ${mapping.task_id}`);
+      }
     } else {
-      const { error } = await supabaseAdmin
-        .from("task_assignments")
-        .delete()
-        .eq("task_id", mapping.task_id)
-        .eq("user_id", userId);
-
-      if (error) throw error;
-
-      console.log(`[Webhook] Removed user ${userId} from task ${mapping.task_id}`);
+      // Remove if present
+      const idx = assignees.indexOf(userId);
+      if (idx >= 0) {
+        assignees.splice(idx, 1);
+        await taskDoc.update({ assignees });
+        console.log(`[Webhook] Removed user ${userId} from task ${mapping.task_id}`);
+      }
     }
   }
 
@@ -230,26 +221,25 @@ export class TrelloWebhookHandler {
 
   private async getMappingByCardId(
     cardId: string
-  ): Promise<{ task_id: number; trello_card_id: string } | null> {
-    const { data, error } = await supabaseAdmin
-      .from("trello_card_mappings")
-      .select("task_id, trello_card_id")
-      .eq("trello_card_id", cardId)
-      .maybeSingle();
+  ): Promise<{ task_id: string; trello_card_id: string } | null> {
+    const snapshot = await db.collection("trello_card_mappings")
+      .where("trello_card_id", "==", cardId)
+      .limit(1)
+      .get();
 
-    if (error) throw error;
-    return data ?? null;
+    if (snapshot.empty) return null;
+    const data = snapshot.docs[0].data();
+    return { task_id: data.task_id, trello_card_id: data.trello_card_id };
   }
 
-  private async getMappedUserId(trelloMemberId: string): Promise<number | null> {
-    const { data, error } = await supabaseAdmin
-      .from("trello_user_mappings")
-      .select("user_id")
-      .eq("trello_member_id", trelloMemberId)
-      .maybeSingle();
+  private async getMappedUserId(trelloMemberId: string): Promise<string | null> {
+    const snapshot = await db.collection("trello_user_mappings")
+      .where("trello_member_id", "==", trelloMemberId)
+      .limit(1)
+      .get();
 
-    if (error) throw error;
-    return data?.user_id ?? null;
+    if (snapshot.empty) return null;
+    return snapshot.docs[0].data().user_id ?? null;
   }
 }
 

@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "../../config/supabase.js";
+import { db } from "../../config/firebase-admin.js";
 import type {
   TrelloConfig,
   TrelloCardMapping,
@@ -7,25 +7,90 @@ import type {
   TrelloSyncLog,
 } from "../../types/trello.js";
 
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+function mapConfig(id: string, data: Partial<TrelloConfig> = {}): TrelloConfig {
+  const timestamp = data.updated_at ?? data.created_at ?? nowIso();
+  return {
+    id,
+    api_key_encrypted: data.api_key_encrypted ?? "",
+    token_encrypted: data.token_encrypted ?? "",
+    board_id: data.board_id ?? "",
+    board_url: data.board_url,
+    enable_auto_sync: data.enable_auto_sync ?? true,
+    enable_two_way_sync: data.enable_two_way_sync ?? false,
+    webhook_id: data.webhook_id,
+    webhook_url: data.webhook_url,
+    created_at: data.created_at ?? timestamp,
+    updated_at: data.updated_at ?? timestamp,
+  };
+}
+
+function mapCardMapping(id: string, taskId: string, data: Partial<TrelloCardMapping> = {}): TrelloCardMapping {
+  const timestamp = data.updated_at ?? data.created_at ?? nowIso();
+  return {
+    id,
+    task_id: data.task_id ?? taskId,
+    trello_card_id: data.trello_card_id ?? "",
+    trello_card_url: data.trello_card_url,
+    created_at: data.created_at ?? timestamp,
+    updated_at: data.updated_at ?? timestamp,
+  };
+}
+
+function mapStatusMapping(id: string, status: TrelloStatusMapping["status"], data: Partial<TrelloStatusMapping> = {}): TrelloStatusMapping {
+  return {
+    id,
+    status: data.status ?? status,
+    trello_list_id: data.trello_list_id ?? "",
+    trello_list_name: data.trello_list_name,
+    created_at: data.created_at ?? nowIso(),
+  };
+}
+
+function mapUserMapping(id: string, userId: string, data: Partial<TrelloUserMapping> = {}): TrelloUserMapping {
+  return {
+    id,
+    user_id: data.user_id ?? userId,
+    trello_member_id: data.trello_member_id ?? "",
+    trello_username: data.trello_username,
+    created_at: data.created_at ?? nowIso(),
+  };
+}
+
+function mapSyncLog(id: string, data: Partial<TrelloSyncLog> = {}): TrelloSyncLog {
+  return {
+    id,
+    task_id: data.task_id,
+    trello_card_id: data.trello_card_id,
+    action: data.action ?? "update",
+    status: data.status ?? "pending",
+    error_message: data.error_message,
+    retry_count: data.retry_count ?? 0,
+    request_payload: data.request_payload,
+    response_payload: data.response_payload,
+    created_at: data.created_at ?? nowIso(),
+    completed_at: data.completed_at,
+  };
+}
+
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 export async function getConfig(): Promise<TrelloConfig | null> {
-  const { data, error } = await supabaseAdmin
-    .from("trello_config")
-    .select("*")
-    .order("id", { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data ?? null;
+  const doc = await db.collection("trello_config").doc("config").get();
+  if (!doc.exists) return null;
+  return mapConfig(doc.id, doc.data() as Partial<TrelloConfig>);
 }
 
 export async function saveConfig(
   config: Omit<TrelloConfig, "id" | "created_at" | "updated_at">
 ): Promise<TrelloConfig> {
+  const ref = db.collection("trello_config").doc("config");
+  const existing = await ref.get();
+  const existingData = existing.data() as Partial<TrelloConfig> | undefined;
   const payload = {
-    id: 1,
     api_key_encrypted: config.api_key_encrypted,
     token_encrypted: config.token_encrypted,
     board_id: config.board_id,
@@ -34,73 +99,49 @@ export async function saveConfig(
     enable_two_way_sync: config.enable_two_way_sync,
     webhook_id: config.webhook_id ?? null,
     webhook_url: config.webhook_url ?? null,
-    updated_at: new Date().toISOString(),
+    created_at: existingData?.created_at ?? nowIso(),
+    updated_at: nowIso(),
   };
-
-  const { data, error } = await supabaseAdmin
-    .from("trello_config")
-    .upsert(payload)
-    .select("*")
-    .single();
-
-  if (error || !data) throw error ?? new Error("Failed to save Trello config");
-  return data;
+  await ref.set(payload, { merge: true });
+  return mapConfig(ref.id, payload);
 }
 
 // ─── Card Mappings ────────────────────────────────────────────────────────────
 
-export async function getCardMapping(
-  taskId: number
-): Promise<TrelloCardMapping | null> {
-  const { data, error } = await supabaseAdmin
-    .from("trello_card_mappings")
-    .select("*")
-    .eq("task_id", taskId)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data ?? null;
+export async function getCardMapping(taskId: string): Promise<TrelloCardMapping | null> {
+  const doc = await db.collection("trello_card_mappings").doc(taskId).get();
+  if (!doc.exists) return null;
+  return mapCardMapping(doc.id, taskId, doc.data() as Partial<TrelloCardMapping>);
 }
 
 export async function saveCardMapping(
-  taskId: number,
+  taskId: string,
   trelloCardId: string,
   trelloCardUrl?: string
 ): Promise<TrelloCardMapping> {
-  const { data, error } = await supabaseAdmin
-    .from("trello_card_mappings")
-    .upsert({
-      task_id: taskId,
-      trello_card_id: trelloCardId,
-      trello_card_url: trelloCardUrl ?? null,
-      updated_at: new Date().toISOString(),
-    })
-    .select("*")
-    .single();
-
-  if (error || !data) throw error ?? new Error("Failed to save Trello card mapping");
-  return data;
+  const ref = db.collection("trello_card_mappings").doc(taskId);
+  const existing = await ref.get();
+  const existingData = existing.data() as Partial<TrelloCardMapping> | undefined;
+  const payload = {
+    task_id: taskId,
+    trello_card_id: trelloCardId,
+    trello_card_url: trelloCardUrl ?? null,
+    created_at: existingData?.created_at ?? nowIso(),
+    updated_at: nowIso(),
+  };
+  await ref.set(payload, { merge: true });
+  return mapCardMapping(ref.id, taskId, payload);
 }
 
-export async function deleteCardMapping(taskId: number): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from("trello_card_mappings")
-    .delete()
-    .eq("task_id", taskId);
-
-  if (error) throw error;
+export async function deleteCardMapping(taskId: string): Promise<void> {
+  await db.collection("trello_card_mappings").doc(taskId).delete();
 }
 
 // ─── Status Mappings ──────────────────────────────────────────────────────────
 
 export async function getStatusMappings(): Promise<TrelloStatusMapping[]> {
-  const { data, error } = await supabaseAdmin
-    .from("trello_status_mappings")
-    .select("*")
-    .order("status", { ascending: true });
-
-  if (error) throw error;
-  return (data ?? []) as TrelloStatusMapping[];
+  const snap = await db.collection("trello_status_mappings").orderBy("status", "asc").get();
+  return snap.docs.map((doc) => mapStatusMapping(doc.id, doc.id as TrelloStatusMapping["status"], doc.data() as Partial<TrelloStatusMapping>));
 }
 
 export async function saveStatusMapping(
@@ -108,49 +149,42 @@ export async function saveStatusMapping(
   trelloListId: string,
   trelloListName?: string
 ): Promise<TrelloStatusMapping> {
-  const { data, error } = await supabaseAdmin
-    .from("trello_status_mappings")
-    .upsert({
-      status,
-      trello_list_id: trelloListId,
-      trello_list_name: trelloListName ?? null,
-    })
-    .select("*")
-    .single();
-
-  if (error || !data) throw error ?? new Error("Failed to save Trello status mapping");
-  return data;
+  const ref = db.collection("trello_status_mappings").doc(status);
+  const existing = await ref.get();
+  const existingData = existing.data() as Partial<TrelloStatusMapping> | undefined;
+  const payload = {
+    status,
+    trello_list_id: trelloListId,
+    trello_list_name: trelloListName ?? null,
+    created_at: existingData?.created_at ?? nowIso(),
+  };
+  await ref.set(payload, { merge: true });
+  return mapStatusMapping(ref.id, status, payload);
 }
 
 // ─── User Mappings ────────────────────────────────────────────────────────────
 
 export async function getUserMappings(): Promise<TrelloUserMapping[]> {
-  const { data, error } = await supabaseAdmin
-    .from("trello_user_mappings")
-    .select("*")
-    .order("user_id", { ascending: true });
-
-  if (error) throw error;
-  return (data ?? []) as TrelloUserMapping[];
+  const snap = await db.collection("trello_user_mappings").get();
+  return snap.docs.map((doc) => mapUserMapping(doc.id, doc.id, doc.data() as Partial<TrelloUserMapping>));
 }
 
 export async function saveUserMapping(
-  userId: number,
+  userId: string,
   trelloMemberId: string,
   trelloUsername?: string
 ): Promise<TrelloUserMapping> {
-  const { data, error } = await supabaseAdmin
-    .from("trello_user_mappings")
-    .upsert({
-      user_id: userId,
-      trello_member_id: trelloMemberId,
-      trello_username: trelloUsername ?? null,
-    })
-    .select("*")
-    .single();
-
-  if (error || !data) throw error ?? new Error("Failed to save Trello user mapping");
-  return data;
+  const ref = db.collection("trello_user_mappings").doc(userId);
+  const existing = await ref.get();
+  const existingData = existing.data() as Partial<TrelloUserMapping> | undefined;
+  const payload = {
+    user_id: userId,
+    trello_member_id: trelloMemberId,
+    trello_username: trelloUsername ?? null,
+    created_at: existingData?.created_at ?? nowIso(),
+  };
+  await ref.set(payload, { merge: true });
+  return mapUserMapping(ref.id, userId, payload);
 }
 
 // ─── Sync Logs ────────────────────────────────────────────────────────────────
@@ -158,25 +192,22 @@ export async function saveUserMapping(
 export async function createSyncLog(
   data: Pick<TrelloSyncLog, "task_id" | "trello_card_id" | "action" | "request_payload">
 ): Promise<TrelloSyncLog> {
-  const { data: created, error } = await supabaseAdmin
-    .from("trello_sync_logs")
-    .insert({
-      task_id: data.task_id ?? null,
-      trello_card_id: data.trello_card_id ?? null,
-      action: data.action,
-      status: "pending",
-      retry_count: 0,
-      request_payload: data.request_payload ?? null,
-    })
-    .select("*")
-    .single();
-
-  if (error || !created) throw error ?? new Error("Failed to create Trello sync log");
-  return created;
+  const ref = db.collection("trello_sync_logs").doc();
+  const log: Partial<TrelloSyncLog> = {
+    task_id: data.task_id ?? null,
+    trello_card_id: data.trello_card_id ?? null,
+    action: data.action,
+    status: "pending",
+    retry_count: 0,
+    request_payload: data.request_payload ?? null,
+    created_at: nowIso(),
+  };
+  await ref.set(log);
+  return mapSyncLog(ref.id, log);
 }
 
 export async function updateSyncLog(
-  id: number,
+  id: string,
   data: Pick<TrelloSyncLog, "status" | "error_message" | "retry_count" | "response_payload">
 ): Promise<TrelloSyncLog> {
   const payload: Record<string, unknown> = {
@@ -185,24 +216,16 @@ export async function updateSyncLog(
     retry_count: data.retry_count,
     response_payload: data.response_payload ?? null,
   };
-
   if (data.status === "success" || data.status === "failed") {
     payload.completed_at = new Date().toISOString();
   }
-
-  const { data: updated, error } = await supabaseAdmin
-    .from("trello_sync_logs")
-    .update(payload)
-    .eq("id", id)
-    .select("*")
-    .single();
-
-  if (error || !updated) throw error ?? new Error("Failed to update Trello sync log");
-  return updated;
+  await db.collection("trello_sync_logs").doc(id).update(payload);
+  const updated = await db.collection("trello_sync_logs").doc(id).get();
+  return mapSyncLog(id, updated.data() as Partial<TrelloSyncLog>);
 }
 
 export interface SyncLogFilters {
-  taskId?: number;
+  taskId?: string;
   status?: TrelloSyncLog["status"];
   dateFrom?: string;
   dateTo?: string;
@@ -217,67 +240,33 @@ export interface PaginatedSyncLogs {
   pageSize: number;
 }
 
-export async function getSyncLogs(
-  filters: SyncLogFilters = {}
-): Promise<PaginatedSyncLogs> {
+export async function getSyncLogs(filters: SyncLogFilters = {}): Promise<PaginatedSyncLogs> {
   const { page = 1, pageSize = 20 } = filters;
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
 
-  let countQuery = supabaseAdmin
-    .from("trello_sync_logs")
-    .select("*", { count: "exact", head: true });
+  let query: FirebaseFirestore.Query = db
+    .collection("trello_sync_logs")
+    .orderBy("created_at", "desc");
 
-  let logsQuery = supabaseAdmin
-    .from("trello_sync_logs")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .range(from, to);
+  if (filters.status) query = query.where("status", "==", filters.status);
+  if (filters.taskId) query = query.where("task_id", "==", filters.taskId);
+  if (filters.dateFrom) query = query.where("created_at", ">=", filters.dateFrom);
+  if (filters.dateTo) query = query.where("created_at", "<=", filters.dateTo);
 
-  if (filters.taskId !== undefined) {
-    countQuery = countQuery.eq("task_id", filters.taskId);
-    logsQuery = logsQuery.eq("task_id", filters.taskId);
-  }
+  const allSnap = await query.get();
+  const total = allSnap.size;
+  const start = (page - 1) * pageSize;
+  const logs = allSnap.docs
+    .slice(start, start + pageSize)
+    .map((doc) => mapSyncLog(doc.id, doc.data() as Partial<TrelloSyncLog>));
 
-  if (filters.status) {
-    countQuery = countQuery.eq("status", filters.status);
-    logsQuery = logsQuery.eq("status", filters.status);
-  }
-
-  if (filters.dateFrom) {
-    countQuery = countQuery.gte("created_at", filters.dateFrom);
-    logsQuery = logsQuery.gte("created_at", filters.dateFrom);
-  }
-
-  if (filters.dateTo) {
-    countQuery = countQuery.lte("created_at", filters.dateTo);
-    logsQuery = logsQuery.lte("created_at", filters.dateTo);
-  }
-
-  const [{ count, error: countError }, { data, error: logsError }] = await Promise.all([
-    countQuery,
-    logsQuery,
-  ]);
-
-  if (countError) throw countError;
-  if (logsError) throw logsError;
-
-  return {
-    logs: (data ?? []) as TrelloSyncLog[],
-    total: count ?? 0,
-    page,
-    pageSize,
-  };
+  return { logs, total, page, pageSize };
 }
 
 export async function deleteOldLogs(olderThanDays: number): Promise<number> {
   const cutoff = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await supabaseAdmin
-    .from("trello_sync_logs")
-    .delete()
-    .lt("created_at", cutoff)
-    .select("id");
-
-  if (error) throw error;
-  return data?.length ?? 0;
+  const snap = await db.collection("trello_sync_logs").where("created_at", "<", cutoff).get();
+  const batch = db.batch();
+  for (const doc of snap.docs) batch.delete(doc.ref);
+  await batch.commit();
+  return snap.size;
 }

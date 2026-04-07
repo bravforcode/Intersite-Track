@@ -1,4 +1,12 @@
-import { supabase } from "../lib/supabase";
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  type User as FirebaseUser,
+} from "firebase/auth";
+import { auth } from "../lib/firebase";
 import api, { clearApiAuthState, setCachedAccessToken } from "./api";
 import type { User } from "../types";
 
@@ -9,54 +17,42 @@ export interface LoginCredentials {
 
 function normalizeAuthMessage(message: string, fallback: string): string {
   const raw = message.trim();
-
   if (!raw) return fallback;
-  if (raw.includes("Email not confirmed")) return "อีเมลนี้ยังไม่ได้ยืนยัน";
-  if (raw.includes("Invalid login credentials")) return "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
-  if (raw.includes("already registered")) return "อีเมลนี้มีอยู่ในระบบแล้ว";
-  if (raw.includes("Failed to fetch") || raw.includes("Load failed") || raw.includes("NetworkError")) {
+  if (raw.includes("auth/user-not-found") || raw.includes("auth/wrong-password") || raw.includes("auth/invalid-credential")) {
+    return "อีเมลหรือรหัสผ่านไม่ถูกต้อง";
+  }
+  if (raw.includes("auth/email-already-in-use")) return "อีเมลนี้มีอยู่ในระบบแล้ว";
+  if (raw.includes("auth/invalid-email")) return "รูปแบบอีเมลไม่ถูกต้อง";
+  if (raw.includes("auth/too-many-requests")) return "พยายามเข้าสู่ระบบบ่อยเกินไป กรุณาลองใหม่ภายหลัง";
+  if (raw.includes("Failed to fetch") || raw.includes("NetworkError")) {
     return "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง";
   }
-  if (raw.includes("ไม่พบข้อมูลผู้ใช้")) {
-    return "บัญชีนี้ยังไม่พร้อมใช้งาน กรุณาลองเข้าสู่ระบบอีกครั้ง";
-  }
-
+  if (raw.includes("ไม่พบข้อมูลผู้ใช้")) return "บัญชีนี้ยังไม่พร้อมใช้งาน กรุณาลองเข้าสู่ระบบอีกครั้ง";
   return raw;
 }
 
 function getAuthErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error) {
-    return normalizeAuthMessage(error.message, fallback);
-  }
+  if (error instanceof Error) return normalizeAuthMessage(error.message, fallback);
   return fallback;
 }
 
-async function fetchAndStoreProfile(
-  profileLoadErrorMessage: string,
-  accessToken?: string
-): Promise<User> {
+async function fetchAndStoreProfile(firebaseUser: FirebaseUser, profileLoadErrorMessage: string): Promise<User> {
   try {
-    if (accessToken) {
-      setCachedAccessToken(accessToken);
-    }
-
+    const token = await firebaseUser.getIdToken();
+    setCachedAccessToken(token);
     const profile = await api.post<User>("/api/auth/profile", {});
-    const token = accessToken ?? (await supabase.auth.getSession()).data.session?.access_token ?? "";
     const user = { ...profile, token };
     localStorage.setItem("user", JSON.stringify(user));
-    setCachedAccessToken(token || null);
     return user;
   } catch (error) {
-    if (accessToken) {
-      clearApiAuthState();
-    }
+    clearApiAuthState();
     throw new Error(getAuthErrorMessage(error, profileLoadErrorMessage));
   }
 }
 
 export const authService = {
   /**
-   * Sign up: create Supabase Auth account + app profile, then auto-login
+   * Sign up: create Firebase Auth account + app profile, then auto-login
    */
   async signUp(email: string, password: string): Promise<User> {
     try {
@@ -65,35 +61,33 @@ export const authService = {
       throw new Error(getAuthErrorMessage(error, "ยังไม่สามารถสร้างบัญชีได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง"));
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
+    let credential;
+    try {
+      credential = await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
       throw new Error(getAuthErrorMessage(error, "สมัครสมาชิกสำเร็จแล้ว แต่ยังไม่สามารถเข้าสู่ระบบอัตโนมัติได้"));
     }
 
-    if (!data.session) throw new Error("ไม่สามารถสร้าง session ได้");
-
     return fetchAndStoreProfile(
-      "สร้างบัญชีสำเร็จแล้ว แต่ยังโหลดข้อมูลผู้ใช้ไม่ได้ กรุณาเข้าสู่ระบบอีกครั้ง",
-      data.session.access_token
+      credential.user,
+      "สร้างบัญชีสำเร็จแล้ว แต่ยังโหลดข้อมูลผู้ใช้ไม่ได้ กรุณาเข้าสู่ระบบอีกครั้ง"
     );
   },
 
   /**
-   * Sign in via Supabase Auth, then fetch app profile (role, dept) from backend.
+   * Sign in via Firebase Auth, then fetch app profile from backend.
    */
   async signIn(email: string, password: string): Promise<User> {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
+    let credential;
+    try {
+      credential = await signInWithEmailAndPassword(auth, email, password);
+    } catch (error) {
       throw new Error(getAuthErrorMessage(error, "ยังไม่สามารถเข้าสู่ระบบได้ในขณะนี้"));
     }
 
-    if (!data.session) throw new Error("ไม่สามารถสร้าง session ได้");
-
     return fetchAndStoreProfile(
-      "เข้าสู่ระบบสำเร็จแล้ว แต่ยังโหลดข้อมูลผู้ใช้ไม่ได้ กรุณาลองใหม่อีกครั้ง",
-      data.session.access_token
+      credential.user,
+      "เข้าสู่ระบบสำเร็จแล้ว แต่ยังโหลดข้อมูลผู้ใช้ไม่ได้ กรุณาลองใหม่อีกครั้ง"
     );
   },
 
@@ -101,15 +95,20 @@ export const authService = {
     clearApiAuthState();
     localStorage.removeItem("user");
     try {
-      await supabase.auth.signOut({ scope: "local" });
+      await firebaseSignOut(auth);
     } catch {
       // UI state is already cleared locally; ignore remote sign-out failures.
     }
   },
 
   async getToken(): Promise<string | null> {
-    const { data } = await supabase.auth.getSession();
-    return data.session?.access_token ?? null;
+    const currentUser = auth.currentUser;
+    if (!currentUser) return null;
+    try {
+      return await currentUser.getIdToken();
+    } catch {
+      return null;
+    }
   },
 
   getStoredUser(): User | null {
@@ -122,29 +121,37 @@ export const authService = {
   },
 
   async resetPassword(email: string): Promise<void> {
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/`,
-    });
-    if (error) throw new Error(error.message);
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } catch (error) {
+      throw new Error(getAuthErrorMessage(error, "ยังไม่สามารถส่งอีเมลรีเซ็ตรหัสผ่านได้"));
+    }
   },
 
-  async resendVerification(email: string): Promise<void> {
-    const { error } = await supabase.auth.resend({ type: "signup", email });
-    if (error) throw new Error(error.message);
+  async resendVerification(_email: string): Promise<void> {
+    // Firebase handles email verification differently; no direct resend via client SDK without user object
+    throw new Error("กรุณาใช้ฟังก์ชัน resetPassword แทน");
   },
 
   /** Fetch app profile from backend and store it (used after auth state change) */
   async fetchProfile(): Promise<User> {
-    return fetchAndStoreProfile("ยังไม่สามารถโหลดข้อมูลผู้ใช้ได้ กรุณาลองใหม่อีกครั้ง");
+    const currentUser = auth.currentUser;
+    if (!currentUser) throw new Error("ไม่ได้เข้าสู่ระบบ");
+    return fetchAndStoreProfile(currentUser, "ยังไม่สามารถโหลดข้อมูลผู้ใช้ได้ กรุณาลองใหม่อีกครั้ง");
   },
 
-  /** Change password via backend Supabase Admin API */
-  async changePassword(userId: number, _oldPassword: string, newPassword: string): Promise<void> {
+  /** Change password via backend Firebase Admin API */
+  async changePassword(userId: string, _oldPassword: string, newPassword: string): Promise<void> {
     await api.put(`/api/users/${userId}/password`, { new_password: newPassword });
   },
 
-  async adminResetPassword(userId: number, newPassword: string): Promise<void> {
+  async adminResetPassword(userId: string, newPassword: string): Promise<void> {
     await api.put(`/api/users/${userId}/password`, { new_password: newPassword });
+  },
+
+  /** Subscribe to auth state changes */
+  onAuthStateChanged(callback: (user: FirebaseUser | null) => void) {
+    return onAuthStateChanged(auth, callback);
   },
 };
 

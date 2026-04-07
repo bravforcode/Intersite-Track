@@ -5,9 +5,9 @@ import type { Notification } from "../../types";
 
 interface NotificationsPageProps {
   notifications: Notification[];
-  onMarkRead: (id: number) => void;
+  onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
-  onViewTask: (refId: number) => void;
+  onViewTask: (refId: string) => void;
 }
 
 export function NotificationsPage({ notifications, onMarkRead, onMarkAllRead, onViewTask }: NotificationsPageProps) {

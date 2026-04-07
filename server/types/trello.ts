@@ -1,7 +1,7 @@
 // ─── Database Models ──────────────────────────────────────────────────────────
 
 export interface TrelloConfig {
-  id: number;
+  id: string;
   api_key_encrypted: string;
   token_encrypted: string;
   board_id: string;
@@ -10,38 +10,38 @@ export interface TrelloConfig {
   enable_two_way_sync: boolean;
   webhook_id?: string;
   webhook_url?: string;
-  created_at: Date;
-  updated_at: Date;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TrelloCardMapping {
-  id: number;
-  task_id: number;
+  id: string;
+  task_id: string;
   trello_card_id: string;
   trello_card_url?: string;
-  created_at: Date;
-  updated_at: Date;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TrelloStatusMapping {
-  id: number;
+  id: string;
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   trello_list_id: string;
   trello_list_name?: string;
-  created_at: Date;
+  created_at: string;
 }
 
 export interface TrelloUserMapping {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
   trello_member_id: string;
   trello_username?: string;
-  created_at: Date;
+  created_at: string;
 }
 
 export interface TrelloSyncLog {
-  id: number;
-  task_id?: number;
+  id: string;
+  task_id?: string;
   trello_card_id?: string;
   action: 'create' | 'update' | 'delete' | 'sync_checklist' | 'sync_members' | 'sync_status';
   status: 'pending' | 'success' | 'failed' | 'retrying';
@@ -49,8 +49,8 @@ export interface TrelloSyncLog {
   retry_count: number;
   request_payload?: Record<string, unknown>;
   response_payload?: Record<string, unknown>;
-  created_at: Date;
-  completed_at?: Date;
+  created_at: string;
+  completed_at?: string;
 }
 
 // ─── Trello API Objects ───────────────────────────────────────────────────────
@@ -114,7 +114,7 @@ export interface TrelloWebhook {
 // ─── Sync Service Types ───────────────────────────────────────────────────────
 
 export interface SyncJob {
-  taskId: number;
+  taskId: string;
   action: 'create' | 'update' | 'delete' | 'sync_checklist' | 'sync_members';
   retryCount: number;
   maxRetries: number;
@@ -132,7 +132,7 @@ export interface TaskChanges {
   due_date?: string | null;
   status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   priority?: string;
-  assigned_users?: number[];
+  assigned_users?: string[];
   checklists?: unknown[];
 }
 
@@ -153,4 +153,10 @@ export interface UpdateCardData {
   due?: string | null;
   idList?: string;
   closed?: boolean;
+}
+
+export interface CreateListData {
+  name: string;
+  idBoard: string;
+  pos?: 'top' | 'bottom' | number;
 }

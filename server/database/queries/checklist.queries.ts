@@ -1,29 +1,16 @@
-import { supabaseAdmin } from "../../config/supabase.js";
+import { db } from "../../config/firebase-admin.js";
 
 export type ChecklistTaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 
-interface ChecklistUserRelation {
-  first_name: string | null;
-  last_name: string | null;
-}
-
 export interface ChecklistRow {
-  id: number;
-  task_id: number;
-  parent_id: number | null;
+  id: string;
+  task_id: string;
+  parent_id: string | null;
   title: string;
   is_checked: boolean | number | null;
   sort_order: number | null;
-  checked_by?: number | null;
+  checked_by?: string | null;
   checked_at?: string | null;
-  checked_user?: ChecklistUserRelation | ChecklistUserRelation[] | null;
-}
-
-function pickUserRelation(
-  value: ChecklistUserRelation | ChecklistUserRelation[] | null | undefined
-): ChecklistUserRelation | null {
-  if (!value) return null;
-  return Array.isArray(value) ? (value[0] ?? null) : value;
 }
 
 export function isChecklistChecked(value: unknown): boolean {
@@ -32,12 +19,12 @@ export function isChecklistChecked(value: unknown): boolean {
 
 export function getChecklistPathMap(
   rows: Array<Pick<ChecklistRow, "id" | "parent_id" | "sort_order">>
-): Map<number, string> {
+): Map<string, string> {
   const sortedRows = [...rows].sort(
-    (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.id - b.id
+    (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
   );
-  const parents = sortedRows.filter((row) => row.parent_id == null);
-  const childrenByParent = new Map<number, Array<Pick<ChecklistRow, "id" | "parent_id" | "sort_order">>>();
+  const parents = sortedRows.filter(row => row.parent_id == null);
+  const childrenByParent = new Map<string, Array<Pick<ChecklistRow, "id" | "parent_id" | "sort_order">>>();
 
   for (const row of sortedRows) {
     if (row.parent_id == null) continue;
@@ -46,7 +33,7 @@ export function getChecklistPathMap(
     childrenByParent.set(row.parent_id, siblings);
   }
 
-  const pathMap = new Map<number, string>();
+  const pathMap = new Map<string, string>();
 
   parents.forEach((parent, parentIndex) => {
     const parentPath = `${parentIndex + 1}`;
@@ -54,7 +41,7 @@ export function getChecklistPathMap(
 
     const children = childrenByParent.get(parent.id) ?? [];
     children
-      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.id - b.id)
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
       .forEach((child, childIndex) => {
         pathMap.set(child.id, `${parentPath}.${childIndex + 1}`);
       });
@@ -73,19 +60,14 @@ export function summarizeChecklistRows(
   progress: number;
   status: ChecklistTaskStatus;
 } {
-  const parentIdsWithChildren = new Set<number>();
-
+  const parentIdsWithChildren = new Set<string>();
   for (const row of rows) {
-    if (row.parent_id != null) {
-      parentIdsWithChildren.add(row.parent_id);
-    }
+    if (row.parent_id != null) parentIdsWithChildren.add(row.parent_id);
   }
 
-  // Count only actionable checklist items.
-  // Group headers that own children do not contribute to progress.
-  const countableRows = rows.filter((row) => !parentIdsWithChildren.has(row.id));
+  const countableRows = rows.filter(row => !parentIdsWithChildren.has(row.id));
   const total = countableRows.length;
-  const checked = countableRows.filter((row) => isChecklistChecked(row.is_checked)).length;
+  const checked = countableRows.filter(row => isChecklistChecked(row.is_checked)).length;
   const progress = total > 0 ? Math.round((checked / total) * 100) : 0;
   const status: ChecklistTaskStatus =
     currentStatus === "cancelled"
@@ -96,63 +78,59 @@ export function summarizeChecklistRows(
           ? "in_progress"
           : "pending";
 
-  return {
-    hasChecklist: rows.length > 0,
-    total,
-    checked,
-    progress,
-    status,
-  };
+  return { hasChecklist: rows.length > 0, total, checked, progress, status };
 }
 
-export async function getChecklistRowsByTaskIds(taskIds: number[]): Promise<ChecklistRow[]> {
-  if (taskIds.length === 0) {
-    return [];
+export async function getChecklistRowsByTaskIds(taskIds: string[]): Promise<ChecklistRow[]> {
+  if (taskIds.length === 0) return [];
+
+  // Firestore "in" query supports max 30 items — batch if needed
+  const CHUNK = 30;
+  const chunks: string[][] = [];
+  for (let i = 0; i < taskIds.length; i += CHUNK) {
+    chunks.push(taskIds.slice(i, i + CHUNK));
   }
 
-  const { data, error } = await supabaseAdmin
-    .from("task_checklists")
-    .select("id, task_id, parent_id, title, is_checked, sort_order, checked_by, checked_at")
-    .in("task_id", taskIds)
-    .order("task_id", { ascending: true })
-    .order("sort_order", { ascending: true })
-    .order("id", { ascending: true });
+  const results = await Promise.all(
+    chunks.map(chunk =>
+      db.collection("task_checklists")
+        .where("task_id", "in", chunk)
+        .orderBy("task_id", "asc")
+        .orderBy("sort_order", "asc")
+        .get()
+    )
+  );
 
-  if (error) throw error;
-  return (data ?? []) as ChecklistRow[];
+  return results.flatMap(snap =>
+    snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChecklistRow))
+  );
 }
 
 export async function getChecklistRowsWithUsers(
-  taskId: number
+  taskId: string
 ): Promise<Array<ChecklistRow & { checked_by_name: string | null }>> {
-  const { data, error } = await supabaseAdmin
-    .from("task_checklists")
-    .select(`
-      id,
-      task_id,
-      parent_id,
-      title,
-      is_checked,
-      sort_order,
-      checked_by,
-      checked_at,
-      checked_user:users!task_checklists_checked_by_fkey(first_name,last_name)
-    `)
-    .eq("task_id", taskId)
-    .order("sort_order", { ascending: true })
-    .order("id", { ascending: true });
+  const snap = await db
+    .collection("task_checklists")
+    .where("task_id", "==", taskId)
+    .orderBy("sort_order", "asc")
+    .get();
 
-  if (error) throw error;
+  const rows = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChecklistRow));
 
-  return (data ?? []).map((row: any) => {
-    const checkedUser = pickUserRelation(row.checked_user);
-    const checkedByName = checkedUser
-      ? `${checkedUser.first_name ?? ""} ${checkedUser.last_name ?? ""}`.trim() || null
-      : null;
+  const checkedByIds = [...new Set(rows.map(r => r.checked_by).filter(Boolean))] as string[];
+  const userMap = new Map<string, string>();
+  if (checkedByIds.length > 0) {
+    const userDocs = await Promise.all(checkedByIds.map(id => db.collection("users").doc(id).get()));
+    for (const doc of userDocs) {
+      if (doc.exists) {
+        const d = doc.data()!;
+        userMap.set(doc.id, `${d.first_name ?? ""} ${d.last_name ?? ""}`.trim() || "");
+      }
+    }
+  }
 
-    return {
-      ...row,
-      checked_by_name: checkedByName,
-    };
-  });
+  return rows.map(row => ({
+    ...row,
+    checked_by_name: row.checked_by ? (userMap.get(row.checked_by) ?? null) : null,
+  }));
 }

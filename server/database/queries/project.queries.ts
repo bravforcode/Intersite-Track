@@ -1,128 +1,69 @@
-import { supabaseAdmin } from "../../config/supabase.js";
-import { Project, ProjectMilestone, Blocker, ProjectWeeklyUpdate } from "../../types/project.js";
+import { db } from "../../config/firebase-admin.js";
 
-/** Find all projects with optional filters */
 export async function findAllProjects(filters: any = {}) {
-  let query = supabaseAdmin
-    .from("projects")
-    .select(`
-      *,
-      owner:users!projects_owner_id_fkey(id, username, first_name, last_name),
-      tasks(id, title, status, priority, progress, due_date),
-      blockers(*)
-    `)
-    .order("created_at", { ascending: false });
+  let query: FirebaseFirestore.Query = db
+    .collection("projects")
+    .orderBy("created_at", "desc");
 
-  if (filters.status) query = query.eq("status", filters.status);
-  if (filters.owner_id) query = query.eq("owner_id", filters.owner_id);
-  if (filters.type) query = query.eq("type", filters.type);
+  const snap = await query.get();
+  let projects = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-  const { data, error } = await query;
-  if (error) throw error;
-  return data;
+  if (filters.status) projects = projects.filter((p: any) => p.status === filters.status);
+  if (filters.owner_id) projects = projects.filter((p: any) => p.owner_id === filters.owner_id);
+  if (filters.type) projects = projects.filter((p: any) => p.type === filters.type);
+
+  return projects;
 }
 
-/** Find project by ID with details */
-export async function findProjectById(id: number) {
-  const { data, error } = await supabaseAdmin
-    .from("projects")
-    .select(`
-      *,
-      owner:users!projects_owner_id_fkey(id, username, first_name, last_name),
-      tasks(*, assignments:users(id, first_name, last_name)),
-      milestones:project_milestones(*),
-      blockers(*, reporter:users!blockers_reported_by_fkey(id, first_name, last_name)),
-      weekly_updates:project_weekly_updates(*, user:users!project_weekly_updates_user_id_fkey(id, first_name, last_name))
-    `)
-    .eq("id", id)
-    .single();
-
-  if (error) throw error;
-  return data;
+export async function findProjectById(id: string) {
+  const doc = await db.collection("projects").doc(id).get();
+  if (!doc.exists) return null;
+  return { id: doc.id, ...doc.data() };
 }
 
-/** Create a new project */
-export async function createProject(project: Partial<Project>) {
-  const { data, error } = await supabaseAdmin
-    .from("projects")
-    .insert(project)
-    .select("id")
-    .single();
-
-  if (error) throw error;
-  return data.id;
+export async function createProject(project: any): Promise<string> {
+  const ref = db.collection("projects").doc();
+  await ref.set({
+    ...project,
+    created_at: project.created_at ?? new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+  return ref.id;
 }
 
-/** Update a project */
-export async function updateProject(id: number, project: Partial<Project>) {
-  const { error } = await supabaseAdmin
-    .from("projects")
-    .update({ ...project, updated_at: new Date().toISOString() })
-    .eq("id", id);
-
-  if (error) throw error;
+export async function updateProject(id: string, project: any): Promise<void> {
+  await db.collection("projects").doc(id).update({
+    ...project,
+    updated_at: new Date().toISOString(),
+  });
 }
 
-/** Delete a project */
-export async function deleteProject(id: number) {
-  const { error } = await supabaseAdmin
-    .from("projects")
-    .delete()
-    .eq("id", id);
-
-  if (error) throw error;
+export async function deleteProject(id: string): Promise<void> {
+  await db.collection("projects").doc(id).delete();
 }
 
-/** Milestones Queries */
-export async function createMilestone(milestone: Partial<ProjectMilestone>) {
-  const { data, error } = await supabaseAdmin
-    .from("project_milestones")
-    .insert(milestone)
-    .select("id")
-    .single();
-
-  if (error) throw error;
-  return data.id;
+export async function createMilestone(milestone: any): Promise<string> {
+  const ref = db.collection("project_milestones").doc();
+  await ref.set({ ...milestone, created_at: new Date().toISOString() });
+  return ref.id;
 }
 
-export async function updateMilestone(id: number, milestone: Partial<ProjectMilestone>) {
-  const { error } = await supabaseAdmin
-    .from("project_milestones")
-    .update(milestone)
-    .eq("id", id);
-
-  if (error) throw error;
+export async function updateMilestone(id: string, milestone: any): Promise<void> {
+  await db.collection("project_milestones").doc(id).update(milestone);
 }
 
-/** Blockers Queries */
-export async function createBlocker(blocker: Partial<Blocker>) {
-  const { data, error } = await supabaseAdmin
-    .from("blockers")
-    .insert(blocker)
-    .select("id")
-    .single();
-
-  if (error) throw error;
-  return data.id;
+export async function createBlocker(blocker: any): Promise<string> {
+  const ref = db.collection("task_blockers").doc();
+  await ref.set({ ...blocker, created_at: new Date().toISOString() });
+  return ref.id;
 }
 
-export async function updateBlocker(id: number, blocker: Partial<Blocker>) {
-  const { error } = await supabaseAdmin
-    .from("blockers")
-    .update(blocker)
-    .eq("id", id);
-
-  if (error) throw error;
+export async function updateBlocker(id: string, blocker: any): Promise<void> {
+  await db.collection("task_blockers").doc(id).update(blocker);
 }
 
-/** Weekly Updates Queries */
-export async function createWeeklyUpdate(update: Partial<ProjectWeeklyUpdate>) {
-  const { data, error } = await supabaseAdmin
-    .from("project_weekly_updates")
-    .insert(update)
-    .select("id")
-    .single();
-
-  if (error) throw error;
-  return data.id;
+export async function createWeeklyUpdate(update: any): Promise<string> {
+  const ref = db.collection("project_weekly_updates").doc();
+  await ref.set({ ...update, created_at: new Date().toISOString() });
+  return ref.id;
 }

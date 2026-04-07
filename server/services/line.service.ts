@@ -39,9 +39,19 @@ export const lineService = {
   },
 
   async sendToGroup(message: string): Promise<boolean> {
-    const groupId = await getLineGroupId();
-    if (!groupId) return false;
-    return pushMessage(groupId, message);
+    if (!LINE_TOKEN) return false;
+    try {
+      await axios.post(
+        "https://api.line.me/v2/bot/message/broadcast",
+        { messages: [{ type: "text", text: message }] },
+        { headers: { "Content-Type": "application/json", Authorization: `Bearer ${LINE_TOKEN}` } }
+      );
+      logger.info("LINE broadcast sent");
+      return true;
+    } catch (error: any) {
+      logger.error(`Failed to broadcast LINE message: ${error.response?.data || error.message}`);
+      return false;
+    }
   },
 
   async notifyAdmin(message: string): Promise<boolean> {

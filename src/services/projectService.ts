@@ -1,54 +1,55 @@
-import { apiClient } from "./apiClient";
-import { Project, ProjectMilestone, Blocker, ProjectWeeklyUpdate } from "../types/project";
+import api from "./api";
+import { Project, ProjectMilestone, ProjectWeeklyUpdate } from "../types/project";
+import { Blocker } from "../types";
+
+function buildQuery(filters: any): string {
+  if (!filters) return "";
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([k, v]) => { if (v !== undefined && v !== null) params.set(k, String(v)); });
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
 
 export const projectService = {
   getProjects: async (filters?: any) => {
-    const { data } = await apiClient.get<Project[]>("/projects", { params: filters });
-    return data;
+    return api.get<Project[]>(`/api/projects${buildQuery(filters)}`);
   },
 
-  getProject: async (id: number) => {
-    const { data } = await apiClient.get<Project>(`/projects/${id}`);
-    return data;
+  getProject: async (id: string) => {
+    return api.get<Project>(`/api/projects/${id}`);
   },
 
   createProject: async (project: Partial<Project>) => {
-    const { data } = await apiClient.post<{ id: number }>("/projects", project);
-    return data;
+    return api.post<{ id: string }>("/api/projects", project);
   },
 
-  updateProject: async (id: number, project: Partial<Project>) => {
-    const { data } = await apiClient.put(`/projects/${id}`, project);
-    return data;
+  updateProject: async (id: string, project: Partial<Project>) => {
+    return api.put<void>(`/api/projects/${id}`, project);
   },
 
-  deleteProject: async (id: number) => {
-    const { data } = await apiClient.delete(`/projects/${id}`);
-    return data;
+  deleteProject: async (id: string) => {
+    return api.delete<void>(`/api/projects/${id}`);
   },
 
-  addMilestone: async (projectId: number, milestone: Partial<ProjectMilestone>) => {
-    const { data } = await apiClient.post<{ id: number }>(`/projects/${projectId}/milestones`, milestone);
-    return data;
+  addMilestone: async (projectId: string, milestone: Partial<ProjectMilestone>) => {
+    return api.post<{ id: string }>(`/api/projects/${projectId}/milestones`, milestone);
   },
 
-  updateMilestoneStatus: async (milestoneId: number, status: 'pending' | 'completed') => {
-    const { data } = await apiClient.patch(`/projects/milestones/${milestoneId}`, { status });
-    return data;
+  updateMilestoneStatus: async (milestoneId: string, status: 'pending' | 'completed') => {
+    return api.patch<void>(`/api/projects/milestones/${milestoneId}`, { status });
   },
 
-  addBlocker: async (projectId: number, blocker: Partial<Blocker>) => {
-    const { data } = await apiClient.post<{ id: number }>(`/projects/${projectId}/blockers`, blocker);
-    return data;
+  addBlocker: async (projectId: string, blocker: Partial<any>) => {
+    return api.post<{ id: string }>(`/api/projects/${projectId}/blockers`, blocker);
   },
 
-  resolveBlocker: async (blockerId: number) => {
-    const { data } = await apiClient.patch(`/projects/blockers/${blockerId}/resolve`);
-    return data;
+  resolveBlocker: async (blockerId: string) => {
+    return api.patch<void>(`/api/projects/blockers/${blockerId}/resolve`);
   },
 
-  addWeeklyUpdate: async (projectId: number, update: Partial<ProjectWeeklyUpdate>) => {
-    const { data } = await apiClient.post<{ id: number }>(`/projects/${projectId}/weekly-updates`, update);
-    return data;
+  addWeeklyUpdate: async (projectId: string, update: Partial<ProjectWeeklyUpdate>) => {
+    return api.post<{ id: string }>(`/api/projects/${projectId}/weekly-updates`, update);
   },
 };
+
+export default projectService;

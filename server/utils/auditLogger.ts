@@ -1,25 +1,18 @@
-import { PoolClient } from "pg";
-import { supabaseAdmin } from "../config/supabase.js";
+import { db } from "../config/firebase-admin.js";
 
 export async function createAuditLog(
-  taskId: number,
-  userId: number | null,
+  taskId: string,
+  userId: string | null,
   action: string,
   oldData: any = null,
-  newData: any = null,
-  client?: PoolClient
+  newData: any = null
 ): Promise<void> {
-  void client;
-
-  const { error } = await supabaseAdmin
-    .from("task_audit_logs")
-    .insert({
-      task_id: taskId,
-      user_id: userId,
-      action,
-      old_data: oldData,
-      new_data: newData,
-    });
-
-  if (error) throw error;
+  await db.collection("task_audit_logs").add({
+    task_id: taskId,
+    user_id: userId,
+    action,
+    old_data: oldData,
+    new_data: newData,
+    created_at: new Date().toISOString(),
+  });
 }

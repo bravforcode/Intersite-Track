@@ -13,7 +13,7 @@ import { Button } from "../common/Button";
 import { Card } from "../common/Card";
 
 interface ProjectDetailModalProps {
-  projectId: number | null;
+  projectId: string | null;
   isOpen: boolean;
   onClose: () => void;
   onRefresh: () => void;
@@ -27,7 +27,7 @@ export function ProjectDetailModal({ projectId, isOpen, onClose, onRefresh }: Pr
   const [showBlockerForm, setShowBlockerForm] = useState(false);
   const [showUpdateForm, setShowUpdateForm] = useState(false);
   const [newMilestone, setNewMilestone] = useState({ title: "", description: "", due_date: "" });
-  const [newBlocker, setNewBlocker] = useState({ description: "", task_id: undefined as number | undefined });
+  const [newBlocker, setNewBlocker] = useState({ description: "", task_id: undefined as string | undefined });
   const [newUpdate, setNewUpdate] = useState({ 
     week_start_date: format(new Date(), "yyyy-MM-dd"), 
     completed_this_week: "", 
@@ -350,7 +350,7 @@ export function ProjectDetailModal({ projectId, isOpen, onClose, onRefresh }: Pr
                       <label className="text-xs text-gray-500 block mb-1">งานที่เกี่ยวข้อง (ถ้ามี)</label>
                       <select 
                         className="text-sm px-3 py-2 border rounded-md w-full"
-                        value={newBlocker.task_id || ""} onChange={e => setNewBlocker({...newBlocker, task_id: e.target.value ? Number(e.target.value) : undefined})}
+                        value={newBlocker.task_id || ""} onChange={e => setNewBlocker({...newBlocker, task_id: e.target.value || undefined})}
                       >
                         <option value="">-- เลือกงาน --</option>
                         {project.tasks?.map(t => (

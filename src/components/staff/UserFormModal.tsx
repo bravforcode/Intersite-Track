@@ -46,7 +46,7 @@ export function UserFormModal({ user, onClose, onSave }: UserFormModalProps) {
         first_name: form.first_name,
         last_name: form.last_name,
         role: form.role as "admin" | "staff",
-        department_id: form.department_id ? Number(form.department_id) : null,
+        department_id: form.department_id || null,
         position: form.position || null,
         line_user_id: form.line_user_id || null,
       };

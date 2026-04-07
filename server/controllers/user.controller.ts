@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import {
   findAllUsers, findUserById, createUser, updateUser, deleteUser, getUserTasks,
 } from "../database/queries/user.queries.js";
-import { supabaseAdmin } from "../config/supabase.js";
+import { adminAuth } from "../config/firebase-admin.js";
 
 /** GET /api/users */
 export async function getUsers(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -15,7 +15,7 @@ export async function getUsers(req: Request, res: Response, next: NextFunction):
 /** GET /api/users/:id */
 export async function getUser(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = await findUserById(Number(req.params.id));
+    const user = await findUserById(req.params.id);
     if (!user) { res.status(404).json({ error: "ไม่พบผู้ใช้" }); return; }
     const { password: _pw, ...userWithoutPassword } = user;
     res.json(userWithoutPassword);
@@ -36,30 +36,30 @@ export async function createUserHandler(req: Request, res: Response, next: NextF
       return;
     }
 
-    // Create Supabase Auth user
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true, // admin-created users are auto-confirmed
-    });
-
-    if (authError) {
+    // Create Firebase Auth user
+    let authUid: string;
+    try {
+      const authUser = await adminAuth.createUser({
+        email,
+        password,
+      });
+      authUid = authUser.uid;
+    } catch (err: any) {
+      const errorMessage = err?.message || "ไม่สามารถสร้างบัญชีผู้ใช้ได้";
       res.status(400).json({
-        error: authError.message.includes("already registered")
+        error: errorMessage.includes("already exists")
           ? "อีเมลนี้มีอยู่ในระบบแล้ว"
-          : authError.message,
+          : errorMessage,
       });
       return;
     }
 
-    const authId = authData.user.id;
-
     // Create app profile, rollback Auth user if DB fails
     try {
-      const id = await createUser({ username, email, auth_id: authId, first_name, last_name, role, department_id, position });
+      const id = await createUser({ username, email, auth_id: authUid, first_name, last_name, role, department_id, position });
       res.json({ id });
     } catch (dbErr: unknown) {
-      await supabaseAdmin.auth.admin.deleteUser(authId).catch(() => {});
+      await adminAuth.deleteUser(authUid).catch(() => {});
       const msg = dbErr instanceof Error ? dbErr.message : "";
       if (msg.includes("unique") || msg.includes("duplicate")) {
         res.status(400).json({ error: "ชื่อผู้ใช้หรืออีเมลนี้มีอยู่แล้ว" });
@@ -74,7 +74,7 @@ export async function createUserHandler(req: Request, res: Response, next: NextF
 export async function updateUserHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { username, first_name, last_name, role, department_id, position } = req.body;
-    await updateUser(Number(req.params.id), { username, first_name, last_name, role, department_id, position });
+    await updateUser(req.params.id, { username, first_name, last_name, role, department_id, position });
     res.json({ success: true });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "";
@@ -84,16 +84,16 @@ export async function updateUserHandler(req: Request, res: Response, next: NextF
   }
 }
 
-/** DELETE /api/users/:id — delete profile + Supabase Auth user */
+/** DELETE /api/users/:id — delete profile + Firebase Auth user */
 export async function deleteUserHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const user = await findUserById(Number(req.params.id));
+    const user = await findUserById(req.params.id);
     if (!user) { res.status(404).json({ error: "ไม่พบผู้ใช้" }); return; }
 
-    await deleteUser(Number(req.params.id));
+    await deleteUser(req.params.id);
 
     if (user.auth_id) {
-      await supabaseAdmin.auth.admin.deleteUser(user.auth_id).catch(() => {});
+      await adminAuth.deleteUser(user.auth_id).catch(() => {});
     }
 
     res.json({ success: true });
@@ -103,7 +103,7 @@ export async function deleteUserHandler(req: Request, res: Response, next: NextF
 /** GET /api/users/:id/tasks */
 export async function getUserTasksHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const requestedUserId = Number(req.params.id);
+    const requestedUserId = req.params.id;
 
     if (!req.user) {
       res.status(401).json({ error: "กรุณาเข้าสู่ระบบก่อน" });

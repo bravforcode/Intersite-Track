@@ -6,6 +6,7 @@ import type {
   TrelloConfigForm, TrelloListOption, TrelloMemberOption,
   StatusMappingEntry, UserMappingEntry, TaskStatus,
 } from "../../types/trello";
+import type { User } from "../../types";
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
   pending: "รอดำเนินการ",
@@ -17,7 +18,7 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
 const ALL_STATUSES: TaskStatus[] = ["pending", "in_progress", "completed", "cancelled"];
 
 interface Props {
-  systemUsers: { id: number; first_name: string; last_name: string; username: string }[];
+  systemUsers: Pick<User, "id" | "first_name" | "last_name" | "username">[];
 }
 
 export default function TrelloSettings({ systemUsers }: Props) {
@@ -38,9 +39,17 @@ export default function TrelloSettings({ systemUsers }: Props) {
   const [statusMappings, setStatusMappings] = useState<Record<TaskStatus, string>>({
     pending: "", in_progress: "", completed: "", cancelled: "",
   });
-  const [userMappings, setUserMappings] = useState<Record<number, string>>({});
+  const [userMappings, setUserMappings] = useState<Record<string, string>>({});
   const [savingMappings, setSavingMappings] = useState(false);
   const [mappingMsg, setMappingMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const [seedWeek, setSeedWeek] = useState(8);
+  const [seedStartDate, setSeedStartDate] = useState(() => {
+    const d = new Date(Date.now() - 8 * 7 * 24 * 60 * 60 * 1000);
+    return d.toISOString().slice(0, 10);
+  });
+  const [seeding, setSeeding] = useState(false);
+  const [seedMsg, setSeedMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Populate form when config loads
   useEffect(() => {
@@ -69,7 +78,7 @@ export default function TrelloSettings({ systemUsers }: Props) {
       const sm2: Record<TaskStatus, string> = { pending: "", in_progress: "", completed: "", cancelled: "" };
       for (const s of sm) sm2[s.status] = s.trelloListId;
       setStatusMappings(sm2);
-      const um2: Record<number, string> = {};
+      const um2: Record<string, string> = {};
       for (const u of um) um2[u.userId] = u.trelloMemberId;
       setUserMappings(um2);
     } catch (e) {
@@ -125,6 +134,22 @@ export default function TrelloSettings({ systemUsers }: Props) {
       setMappingMsg({ ok: false, text: err instanceof Error ? err.message : "บันทึกล้มเหลว" });
     } finally {
       setSavingMappings(false);
+    }
+  }
+
+  async function handleSeedWeeklyProgress() {
+    setSeeding(true);
+    setSeedMsg(null);
+    try {
+      const result = await trelloService.seedWeeklyProgress({ startWeek: seedWeek, startDate: seedStartDate });
+      setSeedMsg({
+        ok: true,
+        text: `สร้างสำเร็จ: ${result.createdListsCount} ลิสต์, ${result.createdCardsCount} การ์ด`,
+      });
+    } catch (err) {
+      setSeedMsg({ ok: false, text: err instanceof Error ? err.message : "สร้างล้มเหลว" });
+    } finally {
+      setSeeding(false);
     }
   }
 
@@ -318,6 +343,56 @@ export default function TrelloSettings({ systemUsers }: Props) {
                 {mappingMsg.text}
               </span>
             )}
+          </div>
+
+          <div className="app-surface rounded-2xl p-6">
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-9 h-9 bg-sky-50 rounded-xl flex items-center justify-center">
+                <CheckCircle2 size={18} className="text-sky-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold app-heading">สร้างสรุปความคืบหน้าลง Trello (Week 8 → ปัจจุบัน)</h3>
+                <p className="text-xs app-soft">ระบบจะสร้างลิสต์และการ์ดรายสัปดาห์จาก Audit Logs เพื่อใช้ส่งให้อาจารย์ตรวจสอบความคืบหน้า</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold app-muted uppercase tracking-wider mb-1">Start Week</label>
+                <input
+                  type="number"
+                  className="w-full px-3 py-2 rounded-xl text-sm app-field"
+                  value={seedWeek}
+                  min={1}
+                  onChange={(e) => setSeedWeek(Number(e.target.value))}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold app-muted uppercase tracking-wider mb-1">Start Date (Week 8)</label>
+                <input
+                  type="date"
+                  className="w-full px-3 py-2 rounded-xl text-sm app-field"
+                  value={seedStartDate}
+                  onChange={(e) => setSeedStartDate(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-4 mt-4">
+              <button
+                type="button"
+                onClick={handleSeedWeeklyProgress}
+                disabled={seeding || !seedStartDate}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              >
+                {seeding ? <RefreshCw size={15} className="animate-spin" /> : <Save size={15} />}
+                สร้าง/อัปเดตสรุปลงบอร์ด
+              </button>
+              {seedMsg && (
+                <span className={`flex items-center gap-1.5 text-sm ${seedMsg.ok ? "text-emerald-600" : "text-red-500"}`}>
+                  {seedMsg.ok ? <CheckCircle2 size={15} /> : <XCircle size={15} />}
+                  {seedMsg.text}
+                </span>
+              )}
+            </div>
           </div>
         </>
       )}

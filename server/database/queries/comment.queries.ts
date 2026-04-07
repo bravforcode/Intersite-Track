@@ -1,52 +1,51 @@
-import { supabaseAdmin } from "../../config/supabase.js";
+import { db } from "../../config/firebase-admin.js";
 
 export interface TaskComment {
-  id: number;
-  task_id: number;
-  user_id: number;
+  id: string;
+  task_id: string;
+  user_id: string;
   message: string;
   created_at: string;
   user_name?: string;
 }
 
-export async function getCommentsByTaskId(taskId: number): Promise<TaskComment[]> {
-  const { data, error } = await supabaseAdmin
-    .from("task_comments")
-    .select(`
-      id,
-      task_id,
-      user_id,
-      message,
-      created_at,
-      user:users!task_comments_user_id_fkey(first_name,last_name)
-    `)
-    .eq("task_id", taskId)
-    .order("created_at", { ascending: true });
+export async function getCommentsByTaskId(taskId: string): Promise<TaskComment[]> {
+  const snap = await db
+    .collection("task_comments")
+    .where("task_id", "==", taskId)
+    .orderBy("created_at", "asc")
+    .get();
 
-  if (error) throw error;
+  const comments = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as TaskComment));
 
-  return (data ?? []).map((row: any) => ({
-    id: row.id,
-    task_id: row.task_id,
-    user_id: row.user_id,
-    message: row.message,
-    created_at: row.created_at,
-    user_name: row.user ? `${row.user.first_name ?? ""} ${row.user.last_name ?? ""}`.trim() : "",
-  }));
+  const userIds = [...new Set(comments.map(c => c.user_id))];
+  const userMap = new Map<string, string>();
+  if (userIds.length > 0) {
+    const userDocs = await Promise.all(userIds.map(id => db.collection("users").doc(id).get()));
+    for (const doc of userDocs) {
+      if (doc.exists) {
+        const d = doc.data()!;
+        userMap.set(doc.id, `${d.first_name ?? ""} ${d.last_name ?? ""}`.trim());
+      }
+    }
+  }
+
+  return comments.map(c => ({ ...c, user_name: userMap.get(c.user_id) ?? "" }));
 }
 
-export async function createComment(taskId: number, userId: number, message: string): Promise<TaskComment> {
-  const { data, error } = await supabaseAdmin
-    .from("task_comments")
-    .insert({
-      task_id: taskId,
-      user_id: userId,
-      message,
-    })
-    .select("id, task_id, user_id, message, created_at")
-    .single();
+export async function createComment(taskId: string, userId: string, message: string): Promise<TaskComment> {
+  const ref = await db.collection("task_comments").add({
+    task_id: taskId,
+    user_id: userId,
+    message,
+    created_at: new Date().toISOString(),
+  });
 
-  if (error || !data) throw error ?? new Error("Failed to create comment");
-
-  return data as TaskComment;
+  return {
+    id: ref.id,
+    task_id: taskId,
+    user_id: userId,
+    message,
+    created_at: new Date().toISOString(),
+  };
 }

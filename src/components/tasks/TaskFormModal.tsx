@@ -21,7 +21,7 @@ export function TaskFormModal({ task, currentUser, onClose, onSave }: TaskFormMo
     priority: task?.priority || "medium",
     status: task?.status || "pending",
     due_date: task?.due_date || "",
-    assigned_user_ids: task?.assignments.map((a) => a.id) || [] as number[],
+    assigned_user_ids: task?.assignments.map((a) => a.id) || [] as string[],
     tags: task?.tags?.join(", ") || "",
   });
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
@@ -84,7 +84,7 @@ export function TaskFormModal({ task, currentUser, onClose, onSave }: TaskFormMo
       const payload = {
         title: form.title,
         description: form.description,
-        task_type_id: form.task_type_id ? Number(form.task_type_id) : null,
+        task_type_id: form.task_type_id || null,
         priority: form.priority as any,
         status: form.status as any,
         due_date: form.due_date,
@@ -108,7 +108,7 @@ export function TaskFormModal({ task, currentUser, onClose, onSave }: TaskFormMo
     }
   };
 
-  const toggleAssignee = (id: number, checked: boolean) => {
+  const toggleAssignee = (id: string, checked: boolean) => {
     setForm((f) => ({
       ...f,
       assigned_user_ids: checked ? [...f.assigned_user_ids, id] : f.assigned_user_ids.filter((x) => x !== id),

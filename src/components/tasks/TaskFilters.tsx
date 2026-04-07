@@ -54,7 +54,7 @@ export function TaskFilters({ users, onFilterChange }: TaskFiltersProps) {
         <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${showFilters ? "bg-blue-600 text-white" : "app-surface-subtle app-muted hover:bg-[var(--app-surface-hover)]"}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-colors ${showFilters ? "bg-blue-600 text-white" : "app-surface-subtle app-muted hover:bg-(--app-surface-hover)"}`}
           >
             <Filter size={18} /> ตัวกรอง{hasActiveFilters ? ` (${activeFilterCount})` : ""}
           </button>
@@ -83,7 +83,7 @@ export function TaskFilters({ users, onFilterChange }: TaskFiltersProps) {
           {hasActiveFilters && (
             <button
               onClick={clearFilters}
-              className="px-4 py-2 rounded-xl text-sm font-medium app-surface-subtle app-muted hover:bg-[var(--app-surface-hover)] transition-colors"
+              className="px-4 py-2 rounded-xl text-sm font-medium app-surface-subtle app-muted hover:bg-(--app-surface-hover) transition-colors"
             >
               ล้างตัวกรอง
             </button>

@@ -8,7 +8,7 @@ interface KanbanBoardProps {
   currentUser: User;
   onViewTask: (task: Task) => void;
   onEditTask?: (task: Task) => void;
-  onStatusChange: (taskId: number, newStatus: string) => void;
+  onStatusChange: (taskId: string, newStatus: string) => void;
 }
 
 const COLUMNS = [
@@ -25,7 +25,7 @@ export function KanbanBoard({ tasks, currentUser, onViewTask, onEditTask, onStat
     if (!destination) return;
     if (destination.droppableId === source.droppableId && destination.index === source.index) return;
 
-    const taskId = parseInt(draggableId, 10);
+    const taskId = draggableId;
     const newStatus = destination.droppableId;
     
     // Call parent handler which will do optimistic update and API call

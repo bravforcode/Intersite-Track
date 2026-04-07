@@ -13,8 +13,8 @@ const typeIcon: Record<string, React.ReactNode> = {
 
 interface NotificationItemProps {
   notification: Notification;
-  onMarkRead: (id: number) => void;
-  onViewTask: (refId: number) => void;
+  onMarkRead: (id: string) => void;
+  onViewTask: (refId: string) => void;
 }
 
 export function NotificationItem({ notification: n, onMarkRead, onViewTask }: NotificationItemProps) {

@@ -1,10 +1,10 @@
 export interface Notification {
-  id: number;
-  user_id: number;
+  id: string;
+  user_id: string;
   title: string;
   message: string;
   type: string;
-  reference_id: number;
+  reference_id: string;
   is_read: number;
   created_at: string;
 }

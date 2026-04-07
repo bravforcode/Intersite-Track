@@ -6,7 +6,7 @@ import {
 } from "../database/queries/task.queries.js";
 import { findAllUsers, findUserById } from "../database/queries/user.queries.js";
 import { createNotification } from "../database/queries/notification.queries.js";
-import { supabaseAdmin } from "../config/supabase.js";
+import { db } from "../config/firebase-admin.js";
 import { createAuditLog } from "../utils/auditLogger.js";
 import { ensureTaskAccess } from "../utils/taskAccess.js";
 import { lineService } from "../services/line.service.js";
@@ -17,7 +17,7 @@ const STATUS_THAI: Record<string, string> = {
 };
 
 interface TaskTypeRow {
-  id: number;
+  id: string;
   name: string;
 }
 
@@ -40,20 +40,23 @@ export async function getTasksWorkspace(req: Request, res: Response, next: NextF
       ...(req.query as Record<string, string>),
       ...(req.user?.role === "staff" ? { user_id: String(req.user.id) } : {}),
     };
-    const [tasks, users, taskTypesResult] = await Promise.all([
+
+    // Fetch task types from Firestore
+    const taskTypesSnapshot = await db.collection("task_types").orderBy("id").get();
+    const taskTypes = taskTypesSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      name: doc.data().name,
+    }));
+
+    const [tasks, users] = await Promise.all([
       findAllTasks(filters),
       findAllUsers(),
-      supabaseAdmin.from("task_types").select("id, name").order("id", { ascending: true }),
     ]);
-
-    if (taskTypesResult.error) {
-      throw taskTypesResult.error;
-    }
 
     res.json({
       tasks,
       users,
-      taskTypes: taskTypesResult.data ?? [],
+      taskTypes,
     });
   } catch (err) {
     next(err);
@@ -63,7 +66,7 @@ export async function getTasksWorkspace(req: Request, res: Response, next: NextF
 /** GET /api/tasks/:id */
 export async function getTask(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const access = await ensureTaskAccess(req.user, Number(req.params.id));
+    const access = await ensureTaskAccess(req.user, req.params.id);
     if (!access.ok || !access.task) {
       res.status(access.status ?? 403).json({ error: access.error ?? "คุณไม่มีสิทธิ์เข้าถึงงานนี้" });
       return;
@@ -109,7 +112,7 @@ export async function createTaskHandler(req: Request, res: Response, next: NextF
 /** PUT /api/tasks/:id */
 export async function updateTaskHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const taskId = Number(req.params.id);
+    const taskId = req.params.id;
     const { title, description, task_type_id, priority, status, due_date, assigned_user_ids, project_id } = req.body;
     const existingTask = await findTaskById(taskId);
     await updateTask(taskId, { title, description, task_type_id, priority, status, due_date, project_id });
@@ -155,7 +158,7 @@ export async function updateTaskHandler(req: Request, res: Response, next: NextF
 /** PATCH /api/tasks/:id/status */
 export async function updateStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const taskId = Number(req.params.id);
+    const taskId = req.params.id;
     const { status, progress } = req.body;
 
     const access = await ensureTaskAccess(req.user, taskId);
@@ -204,18 +207,19 @@ export async function updateStatus(req: Request, res: Response, next: NextFuncti
 /** DELETE /api/tasks/:id */
 export async function deleteTaskHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const existingTask = await findTaskById(Number(req.params.id));
+    const taskId = req.params.id;
+    const existingTask = await findTaskById(taskId);
     if (existingTask) {
-      await createAuditLog(existingTask.id as number, req.user?.id || null, "DELETE", existingTask, null);
+      await createAuditLog(existingTask.id as string, req.user?.id || null, "DELETE", existingTask, null);
     }
-    await deleteTask(Number(req.params.id));
+    await deleteTask(taskId);
     res.json({ success: true });
   } catch (err) { next(err); }
 }
 
 export async function getBlockers(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const taskId = Number(req.params.id);
+    const taskId = req.params.id;
     const blockers = await getTaskBlockers(taskId);
     res.json(blockers);
   } catch (err) { next(err); }

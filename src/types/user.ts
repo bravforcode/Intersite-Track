@@ -1,13 +1,13 @@
 export type UserRole = "admin" | "staff";
 
 export interface User {
-  id: number;
+  id: string;
   username: string;
   email?: string | null;
   first_name: string;
   last_name: string;
   role: UserRole;
-  department_id: number;
+  department_id: string | null;
   department_name?: string;
   position: string;
   line_user_id?: string | null;
@@ -22,7 +22,7 @@ export interface CreateUserDTO {
   first_name: string;
   last_name: string;
   role?: UserRole;
-  department_id?: number | null;
+  department_id?: string | null;
   position?: string | null;
   line_user_id?: string | null;
 }
@@ -32,18 +32,18 @@ export interface UpdateUserDTO {
   first_name: string;
   last_name: string;
   role: UserRole;
-  department_id?: number | null;
+  department_id?: string | null;
   position?: string | null;
   line_user_id?: string | null;
 }
 
 export interface Department {
-  id: number;
+  id: string;
   name: string;
 }
 
 export interface StaffReport {
-  id: number;
+  id: string;
   first_name: string;
   last_name: string;
   role: "admin" | "staff";

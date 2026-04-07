@@ -11,7 +11,7 @@ import type { User, Department, Task } from "../../types";
 
 interface StaffPageProps {
   onEdit: (user: User) => void;
-  onDelete: (id: number) => void;
+  onDelete: (id: string) => void;
   refreshTrigger?: number; // Used by App to trigger refresh
 }
 
@@ -21,7 +21,7 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
   const [departments, setDepartments] = useState<Department[]>([]);
   
   const [search, setSearch] = useState("");
-  const [staffTasks, setStaffTasks] = useState<Record<number, Task[]>>({});
+  const [staffTasks, setStaffTasks] = useState<Record<string, Task[]>>({});
   const [viewingStaff, setViewingStaff] = useState<User | null>(null);
   const [passwordTarget, setPasswordTarget] = useState<User | null>(null);
   const [passwordForm, setPasswordForm] = useState({ newPassword: "", confirmPassword: "" });
@@ -29,9 +29,9 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
   const [passwordMessage, setPasswordMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Inline editing states
-  const [editingPosition, setEditingPosition] = useState<{ id: number; value: string } | null>(null);
-  const [editingRole, setEditingRole] = useState<number | null>(null);
-  const [inlineSaving, setInlineSaving] = useState<number | null>(null);
+  const [editingPosition, setEditingPosition] = useState<{ id: string; value: string } | null>(null);
+  const [editingRole, setEditingRole] = useState<string | null>(null);
+  const [inlineSaving, setInlineSaving] = useState<string | null>(null);
   const positionInputRef = useRef<HTMLInputElement>(null);
 
   const fetchAll = async () => {
@@ -65,7 +65,7 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
   const adminCount = users.filter((u) => u.role === "admin").length;
   const departmentCount = new Set(users.map((u) => u.department_name).filter(Boolean)).size;
 
-  const loadStaffTasks = async (userId: number) => {
+  const loadStaffTasks = async (userId: string) => {
     const tasks = await api.get<Task[]>(`/api/users/${userId}/tasks`);
     setStaffTasks((prev) => ({ ...prev, [userId]: tasks }));
   };

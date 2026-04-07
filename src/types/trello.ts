@@ -2,7 +2,7 @@
 
 /** Config as returned by the API (credentials are masked) */
 export interface TrelloConfigDisplay {
-  id: number;
+  id: string;
   boardId: string;
   boardUrl?: string;
   enableAutoSync: boolean;
@@ -53,7 +53,7 @@ export interface StatusMappingEntry {
 }
 
 export interface UserMappingEntry {
-  userId: number;
+  userId: string;
   username: string;
   fullName?: string;
   trelloMemberId: string;
@@ -74,7 +74,7 @@ export type SyncAction =
 
 /** Compact sync state shown on a task row */
 export interface TaskSyncState {
-  taskId: number;
+  taskId: string;
   trelloCardId?: string;
   trelloCardUrl?: string;
   status: SyncStatus;
@@ -87,8 +87,8 @@ export interface TaskSyncState {
 
 /** A single log entry for the sync log viewer */
 export interface SyncLogEntry {
-  id: number;
-  taskId?: number;
+  id: string;
+  taskId?: string;
   taskTitle?: string;
   trelloCardId?: string;
   action: SyncAction;
@@ -101,7 +101,7 @@ export interface SyncLogEntry {
 
 /** Query params for fetching sync logs */
 export interface SyncLogFilters {
-  taskId?: number;
+  taskId?: string;
   status?: SyncStatus;
   action?: SyncAction;
   dateFrom?: string;

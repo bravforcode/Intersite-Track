@@ -20,7 +20,7 @@ export function SettingsPage({ refreshTrigger = 0 }: SettingsPageProps) {
   const [users, setUsers] = useState<User[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
-  const [tab, setTab] = useState<"departments" | "taskTypes" | "trello" | "trelloLogs" | "auditLogs">("departments");
+  const [tab, setTab] = useState<"departments" | "taskTypes" | "trello" | "trelloLogs" | "auditLogs" | "systemInfo">("departments");
   const [newDeptName, setNewDeptName] = useState("");
   const [editingDept, setEditingDept] = useState<Department | null>(null);
   const [newTypeName, setNewTypeName] = useState("");
@@ -80,7 +80,7 @@ export function SettingsPage({ refreshTrigger = 0 }: SettingsPageProps) {
     catch (e: any) { setError(e.message); }
   };
 
-  const handleDeleteDept = async (id: number) => {
+  const handleDeleteDept = async (id: string) => {
     try { await userService.deleteDepartment(id); setError(""); onRefresh(); }
     catch (e: any) { setError(e.message); }
   };
@@ -97,7 +97,7 @@ export function SettingsPage({ refreshTrigger = 0 }: SettingsPageProps) {
     catch (e: any) { setError(e.message); }
   };
 
-  const handleDeleteType = async (id: number) => {
+  const handleDeleteType = async (id: string) => {
     try { await taskTypeService.deleteTaskType(id); setError(""); onRefresh(); }
     catch (e: any) { setError(e.message); }
   };
@@ -136,6 +136,7 @@ export function SettingsPage({ refreshTrigger = 0 }: SettingsPageProps) {
         {tabBtn("trello", <ArrowLeftRight size={16} className="inline mr-2" />, "Trello")}
         {tabBtn("trelloLogs", <FileText size={16} className="inline mr-2" />, "Sync Logs")}
         {tabBtn("auditLogs", <ClipboardList size={16} className="inline mr-2" />, "Audit Logs")}
+        {tabBtn("systemInfo", <CheckCircle2 size={16} className="inline mr-2" />, "ข้อมูลระบบ")}
       </div>
 
       {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-xl border border-red-100">{error}</div>}
@@ -260,7 +261,13 @@ export function SettingsPage({ refreshTrigger = 0 }: SettingsPageProps) {
                         log.action === "DELETE" ? "bg-red-100 text-red-700" :
                         "bg-blue-100 text-blue-700"
                       }`}>
-                        {log.action}
+                        {log.action === "CREATE" ? "สร้าง" :
+                         log.action === "UPDATE" ? "แก้ไข" :
+                         log.action === "DELETE" ? "ลบ" :
+                         log.action === "STATUS_CHANGE" ? "เปลี่ยนสถานะ" :
+                         log.action === "PROGRESS_UPDATE" ? "อัปเดตความคืบหน้า" :
+                         log.action === "COMMENT" ? "ความคิดเห็น" :
+                         log.action}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-xs app-soft truncate max-w-50" title={log.task_title}>
@@ -271,6 +278,43 @@ export function SettingsPage({ refreshTrigger = 0 }: SettingsPageProps) {
               </tbody>
             </table>
             {auditLogs.length === 0 && <p className="text-center py-8 app-soft">ไม่มีข้อมูลประวัติ</p>}
+          </div>
+        </div>
+      )}
+
+      {tab === "systemInfo" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="app-surface rounded-3xl p-6">
+            <h4 className="text-sm font-bold uppercase tracking-wider app-soft mb-4">ระดับความสำคัญ (Priorities)</h4>
+            <div className="space-y-3">
+              {[
+                { key: "urgent", label: "เร่งด่วน", color: "text-rose-600 bg-rose-50" },
+                { key: "high", label: "สูง", color: "text-orange-600 bg-orange-50" },
+                { key: "medium", label: "ปานกลาง", color: "text-blue-600 bg-blue-50" },
+                { key: "low", label: "ต่ำ", color: "text-slate-600 bg-slate-50" },
+              ].map((p) => (
+                <div key={p.key} className="flex items-center justify-between p-3 rounded-xl border border-gray-100">
+                  <span className="text-sm font-medium app-heading">{p.label}</span>
+                  <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase ${p.color}`}>{p.key}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="app-surface rounded-3xl p-6">
+            <h4 className="text-sm font-bold uppercase tracking-wider app-soft mb-4">สถานะงาน (Task Statuses)</h4>
+            <div className="space-y-3">
+              {[
+                { key: "pending", label: "รอดำเนินการ", color: "text-slate-600 bg-slate-50" },
+                { key: "in_progress", label: "กำลังดำเนินการ", color: "text-amber-600 bg-amber-50" },
+                { key: "completed", label: "เสร็จสิ้น", color: "text-emerald-600 bg-emerald-50" },
+                { key: "cancelled", label: "ยกเลิก", color: "text-rose-600 bg-rose-50" },
+              ].map((s) => (
+                <div key={s.key} className="flex items-center justify-between p-3 rounded-xl border border-gray-100">
+                  <span className="text-sm font-medium app-heading">{s.label}</span>
+                  <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase ${s.color}`}>{s.key}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

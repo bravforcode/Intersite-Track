@@ -19,7 +19,7 @@ export function ProjectFormModal({ isOpen, onClose, onSuccess }: ProjectFormModa
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    owner_id: undefined as number | undefined,
+    owner_id: undefined as string | undefined,
     status: "planning" as ProjectStatus,
     type: "new_dev" as ProjectType,
     color: "#5A5A40",
@@ -63,7 +63,7 @@ export function ProjectFormModal({ isOpen, onClose, onSuccess }: ProjectFormModa
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: name === "owner_id" ? (value ? Number(value) : undefined) : value,
+      [name]: value || undefined,
     }));
   };
 

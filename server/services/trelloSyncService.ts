@@ -50,17 +50,17 @@ const PRIORITY_COLOR: Record<string, string> = {
 // ─── Task shape expected by the service ──────────────────────────────────────
 
 export interface SyncTask {
-  id: number;
+  id: string;
   title: string;
   description?: string | null;
   status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   priority: string;
   due_date?: string | null;
-  assignments?: Array<{ id: number; first_name: string; last_name: string }>;
+  assignments?: Array<{ id: string; first_name: string; last_name: string }>;
   checklists?: Array<{
-    id: number;
+    id: string;
     title: string;
-    items: Array<{ id: number; title: string; is_completed: boolean }>;
+    items: Array<{ id: string; title: string; is_completed: boolean }>;
   }>;
 }
 
@@ -101,7 +101,7 @@ export class TrelloSyncService {
   }
 
   /** Called before/after a task is deleted. */
-  async syncTaskDeletion(taskId: number, trelloCardId: string): Promise<void> {
+  async syncTaskDeletion(taskId: string, trelloCardId: string): Promise<void> {
     this.runWithRetry('delete', taskId, () => this._syncTaskDeletion(taskId, trelloCardId));
   }
 
@@ -186,7 +186,7 @@ export class TrelloSyncService {
     }
   }
 
-  private async _syncTaskDeletion(taskId: number, trelloCardId: string): Promise<void> {
+  private async _syncTaskDeletion(taskId: string, trelloCardId: string): Promise<void> {
     const client = await this.buildClient();
     if (!client) return;
 
@@ -324,7 +324,7 @@ export class TrelloSyncService {
    */
   private runWithRetry(
     action: 'create' | 'update' | 'delete',
-    taskId: number,
+    taskId: string,
     fn: () => Promise<void>
   ): void {
     // Intentionally not awaited — fire-and-forget

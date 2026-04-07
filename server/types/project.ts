@@ -1,8 +1,8 @@
 export interface Project {
-    id: number;
+    id: string;
     name: string;
     description?: string;
-    owner_id?: number;
+    owner_id?: string;
     status: 'planning' | 'developing' | 'testing' | 'launched' | 'maintenance' | 'on_hold' | 'cancelled';
     type: 'new_dev' | 'maintenance' | 'bug_fix' | 'support';
     start_date?: string;
@@ -19,8 +19,8 @@ export interface Project {
 }
 
 export interface ProjectMilestone {
-    id: number;
-    project_id: number;
+    id: string;
+    project_id: string;
     title: string;
     description?: string;
     due_date?: string;
@@ -29,20 +29,20 @@ export interface ProjectMilestone {
 }
 
 export interface Blocker {
-    id: number;
-    project_id?: number;
-    task_id?: number;
+    id: string;
+    project_id?: string;
+    task_id?: string;
     description: string;
-    reported_by?: number;
+    reported_by?: string;
     status: 'active' | 'resolved';
     resolved_at?: string;
     created_at?: string;
 }
 
 export interface ProjectWeeklyUpdate {
-    id: number;
-    project_id: number;
-    user_id?: number;
+    id: string;
+    project_id: string;
+    user_id?: string;
     week_start_date: string;
     completed_this_week?: string;
     planned_next_week?: string;

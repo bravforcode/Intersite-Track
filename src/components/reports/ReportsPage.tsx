@@ -34,16 +34,24 @@ ChartJS.register(
 );
 
 interface ReportsPageProps {
+  user: any;
   refreshTrigger?: number; // Used by App to trigger refresh
 }
 
-export function ReportsPage({ refreshTrigger = 0 }: ReportsPageProps) {
+export function ReportsPage({ user, refreshTrigger = 0 }: ReportsPageProps) {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Stats>({ total: 0, completed: 0, inProgress: 0, pending: 0, cancelled: 0 });
   const [staffReport, setStaffReport] = useState<StaffReport[]>([]);
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [dateReport, setDateReport] = useState<Record<string, unknown>[]>([]);
   const [analytics, setAnalytics] = useState<{ deptWorkload: any[], burnDown: any[] }>({ deptWorkload: [], burnDown: [] });
+
+  const token = user?.token || "";
+
+  const handleDownload = (endpoint: string) => {
+    const url = `${endpoint}${endpoint.includes("?") ? "&" : "?"}token=${token}`;
+    window.open(url, "_blank");
+  };
 
   const fetchAll = async () => {
     try {
@@ -123,15 +131,15 @@ export function ReportsPage({ refreshTrigger = 0 }: ReportsPageProps) {
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-serif font-bold app-heading">สรุปรายงาน</h3>
         <div className="flex gap-2">
-          <button onClick={() => window.open("/api/reports/export-csv", "_blank")}
+          <button onClick={() => handleDownload("/api/reports/export-csv")}
             className="flex items-center gap-2 bg-white border border-[#5A5A40] text-[#5A5A40] px-4 py-2 rounded-xl text-sm font-medium shadow-sm hover:bg-gray-50 transition-colors">
-            <Download size={18} /> ส่งออก CSV
+            <Download size={18} /> ส่งออก Excel/CSV
           </button>
-          <button onClick={() => window.open("/api/reports/export-pdf", "_blank")}
+          <button onClick={() => handleDownload("/api/reports/export-pdf")}
             className="flex items-center gap-2 bg-[#5A5A40] text-white px-4 py-2 rounded-xl text-sm font-medium shadow-md hover:bg-[#4A4A30] transition-colors">
             <Download size={18} /> รายงานงาน (PDF)
           </button>
-          <button onClick={() => window.open("/api/reports/export-staff-pdf", "_blank")}
+          <button onClick={() => handleDownload("/api/reports/export-staff-pdf")}
             className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-md hover:bg-indigo-700 transition-colors">
             <Download size={18} /> รายงานบุคลากร (PDF)
           </button>
