@@ -43,8 +43,13 @@ router.get("/debug/firebase", async (req, res) => {
     const { adminAuth } = await import("../config/firebase-admin.js");
     const projectId = process.env.FIREBASE_PROJECT_ID;
     const hasKey = !!process.env.FIREBASE_PRIVATE_KEY;
-    const keyStart = (process.env.FIREBASE_PRIVATE_KEY ?? "").substring(0, 30);
-    res.json({ ok: true, projectId, hasKey, keyStart });
+    const rawKey = process.env.FIREBASE_PRIVATE_KEY ?? "";
+    const keyStart = rawKey.substring(0, 50);
+    const isBase64 = !rawKey.includes("-----BEGIN");
+    const decoded = isBase64 ? Buffer.from(rawKey, "base64").toString("utf-8") : rawKey.replace(/\\n/g, "\n");
+    const decodedStart = decoded.substring(0, 40);
+    const hasRealNewlines = decoded.includes("\n");
+    res.json({ ok: true, projectId, hasKey, keyStart, isBase64, decodedStart, hasRealNewlines });
   } catch (err: any) {
     res.status(500).json({ ok: false, error: err.message });
   }
