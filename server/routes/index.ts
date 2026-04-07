@@ -9,6 +9,8 @@ import reportRoutes from "./report.routes.js";
 import trelloRoutes from "./trello.routes.js";
 import projectRoutes from "./project.routes.js";
 import lineWebhookRoutes from "./lineWebhook.routes.js";
+import holidayRoutes from "./holiday.routes.js";
+import { requireAuth, requireRole } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
@@ -23,5 +25,14 @@ router.use("/reports", reportRoutes);
 router.use("/stats", reportRoutes);
 router.use("/trello", trelloRoutes);
 router.use("/line", lineWebhookRoutes);
+router.use("/holidays", holidayRoutes);
+
+router.get("/settings/line-group", requireAuth, requireRole("admin"), async (req, res, next) => {
+  try {
+    const { getLineGroupId } = await import("../database/queries/appSettings.queries.js");
+    const groupId = await getLineGroupId();
+    res.json({ group_id: groupId });
+  } catch (err) { next(err); }
+});
 
 export default router;
