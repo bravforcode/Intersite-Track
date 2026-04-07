@@ -2,10 +2,10 @@ import api from "./api";
 import type { SaturdaySchedule, CreateSaturdayDTO } from "../types/holiday";
 
 export const saturdayService = {
-  async getSchedules(year?: string, month?: string): Promise<SaturdaySchedule[]> {
+  async getSchedules(year?: number, month?: number): Promise<SaturdaySchedule[]> {
     const params = new URLSearchParams();
-    if (year) params.set("year", year);
-    if (month) params.set("month", month);
+    if (year) params.set("year", String(year));
+    if (month) params.set("month", String(month));
     const query = params.toString() ? `?${params.toString()}` : "";
     return api.get<SaturdaySchedule[]>(`/api/saturday-schedules${query}`);
   },

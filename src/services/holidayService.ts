@@ -2,10 +2,10 @@ import api from "./api";
 import type { Holiday, CreateHolidayDTO } from "../types/holiday";
 
 export const holidayService = {
-  async getHolidays(year?: string, month?: string): Promise<Holiday[]> {
+  async getHolidays(year?: number, month?: number): Promise<Holiday[]> {
     const params = new URLSearchParams();
-    if (year) params.set("year", year);
-    if (month) params.set("month", month);
+    if (year) params.set("year", String(year));
+    if (month) params.set("month", String(month));
     const query = params.toString() ? `?${params.toString()}` : "";
     return api.get<Holiday[]>(`/api/holidays${query}`);
   },
