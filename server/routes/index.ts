@@ -8,6 +8,7 @@ import notificationRoutes from "./notification.routes.js";
 import reportRoutes from "./report.routes.js";
 import trelloRoutes from "./trello.routes.js";
 import projectRoutes from "./project.routes.js";
+import lineWebhookRoutes from "./lineWebhook.routes.js";
 
 const router = Router();
 
@@ -21,5 +22,6 @@ router.use("/notifications", notificationRoutes);
 router.use("/reports", reportRoutes);
 router.use("/stats", reportRoutes);
 router.use("/trello", trelloRoutes);
+router.use("/line", lineWebhookRoutes);
 
 export default router;
