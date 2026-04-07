@@ -45,10 +45,24 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   }
 
   try {
-    const decodedToken = await adminAuth.verifyIdToken(token);
+    let decodedToken: any;
+    try {
+      decodedToken = await adminAuth.verifyIdToken(token);
+    } catch (err: any) {
+      process.stderr.write(`[AUTH] verifyIdToken FAILED: ${err?.message ?? err}\n`);
+      res.status(401).json({ error: "Token ไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่" });
+      return;
+    }
     const uid = decodedToken.uid;
 
-    const userDoc = await db.collection("users").doc(uid).get();
+    let userDoc: any;
+    try {
+      userDoc = await db.collection("users").doc(uid).get();
+    } catch (err: any) {
+      process.stderr.write(`[AUTH] Firestore get FAILED for uid=${uid}: ${err?.message ?? err}\n`);
+      res.status(500).json({ error: "เกิดข้อผิดพลาดในการดึงข้อมูลผู้ใช้" });
+      return;
+    }
 
     if (!userDoc.exists) {
       res.status(401).json({ error: "ไม่พบข้อมูลผู้ใช้ กรุณาติดต่อแอดมิน" });
@@ -79,8 +93,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
     next();
   } catch (err: any) {
-    process.stderr.write(`[AUTH] verifyIdToken failed: ${err?.message ?? err}\n`);
-    res.status(401).json({ error: "Token ไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่" });
+    process.stderr.write(`[AUTH] unexpected error: ${err?.message ?? err}\n`);
+    res.status(500).json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่" });
   }
 }
 
