@@ -78,7 +78,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     });
 
     next();
-  } catch {
+  } catch (err: any) {
+    process.stderr.write(`[AUTH] verifyIdToken failed: ${err?.message ?? err}\n`);
     res.status(401).json({ error: "Token ไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่" });
   }
 }
