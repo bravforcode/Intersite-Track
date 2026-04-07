@@ -9,6 +9,8 @@ import { userService } from "../../services/userService";
 import { formatDate } from "../../utils/formatters";
 import { priorityLabel, priorityColor } from "../../utils/constants";
 import type { Task, User, Stats } from "../../types";
+import { HolidayWidget } from "./HolidayWidget";
+import { SaturdayWidget } from "./SaturdayWidget";
 
 interface DashboardPageProps {
   user: User;
@@ -87,7 +89,7 @@ export function DashboardPage({ user, onViewTask, onViewAll, refreshTrigger }: D
 
   const myTasks =
     user.role === "staff"
-      ? tasks.filter((t) => t.assignments.some((a) => a.id === user.id))
+      ? tasks.filter((t) => (t.assignments ?? []).some((a) => a.id === user.id))
       : tasks;
 
   const today = new Date().toISOString().split("T")[0];
@@ -96,7 +98,7 @@ export function DashboardPage({ user, onViewTask, onViewAll, refreshTrigger }: D
   const dueTodayTasks = activeTasks.filter((t) => t.due_date === today);
   const completionRate = myTasks.length > 0 ? Math.round((myTasks.filter((t) => t.status === "completed").length / myTasks.length) * 100) : 0;
   const urgentTasks = activeTasks.filter((t) => t.priority === "urgent").length;
-  const unassignedTasks = activeTasks.filter((t) => t.assignments.length === 0).length;
+  const unassignedTasks = activeTasks.filter((t) => (t.assignments ?? []).length === 0).length;
   const dueSoonTasks = activeTasks.filter((t) => {
     if (!t.due_date) return false;
     const diffDays = Math.ceil((new Date(t.due_date).getTime() - new Date(today).getTime()) / (1000 * 60 * 60 * 24));
@@ -105,7 +107,7 @@ export function DashboardPage({ user, onViewTask, onViewAll, refreshTrigger }: D
   const workloadRanking = users
     .map((member) => ({
       ...member,
-      assigned: tasks.filter((task) => task.status !== "completed" && task.status !== "cancelled" && task.assignments.some((assignee) => assignee.id === member.id)).length,
+      assigned: tasks.filter((task) => task.status !== "completed" && task.status !== "cancelled" && (task.assignments ?? []).some((assignee) => assignee.id === member.id)).length,
     }))
     .filter((member) => member.assigned > 0)
     .sort((a, b) => b.assigned - a.assigned)
@@ -125,6 +127,12 @@ export function DashboardPage({ user, onViewTask, onViewAll, refreshTrigger }: D
       transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
       className="space-y-8"
     >
+      {/* Holiday & Saturday Widgets */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <HolidayWidget />
+        <SaturdayWidget />
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <StatCard index={0} title="งานทั้งหมด" value={stats.total} icon={<ClipboardList className="text-blue-500" />} bg="bg-blue-50" />
         <StatCard index={1} title="กำลังดำเนินการ" value={stats.inProgress} icon={<Clock className="text-amber-500" />} bg="bg-amber-50" />
