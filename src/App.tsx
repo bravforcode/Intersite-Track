@@ -1,8 +1,8 @@
 import React, { Suspense, lazy, useCallback, useEffect, useState } from "react";
-import { LayoutDashboard, Users, ClipboardList, Bell, BarChart3, Database, Briefcase, BarChartHorizontal } from "lucide-react";
+import { LayoutDashboard, Users, ClipboardList, Bell, BarChart3, Database, Briefcase, BarChartHorizontal, CalendarDays, CalendarCheck } from "lucide-react";
 import { AnimatePresence } from "motion/react";
 
-import { supabase } from "./lib/supabase";
+import { auth } from "./lib/firebase";
 import { authService } from "./services/authService";
 import { taskService } from "./services/taskService";
 import { userService } from "./services/userService";
@@ -50,6 +50,12 @@ const ProfileModal = lazy(() =>
 const ConfirmDialog = lazy(() =>
   import("./components/common/ConfirmDialog").then((module) => ({ default: module.ConfirmDialog }))
 );
+const HolidaysPage = lazy(() =>
+  import("./components/holidays/HolidaysPage").then((m) => ({ default: m.HolidaysPage }))
+);
+const SaturdaySchedulePage = lazy(() =>
+  import("./components/saturday/SaturdaySchedulePage").then((m) => ({ default: m.SaturdaySchedulePage }))
+);
 
 function PageFallback() {
   return (
@@ -64,6 +70,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  const [users, setUsers] = useState<User[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -81,30 +88,32 @@ export default function App() {
     const saved = authService.getStoredUser();
     if (saved) {
       setUser(saved);
-    } else {
-      void supabase.auth.getSession().then(async ({ data }) => {
-        if (!data.session) return;
+    }
 
+    // Set up Firebase auth listener
+    const unsubscribe = auth.onAuthStateChanged(async (currentUser) => {
+      if (!currentUser) {
+        setUser(null);
+        setActiveTab("dashboard");
+      } else if (!saved) {
+        // User is signed in and we don't have a saved profile, fetch it
         try {
           const profile = await authService.fetchProfile();
           setUser(profile);
         } catch {
           // Ignore stale sessions that do not map to an app profile.
         }
-      });
-    }
-
-    // Do not make async Supabase calls inside this callback.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_OUT") {
-        setUser(null);
-        setActiveTab("dashboard");
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
+
+  useEffect(() => {
+    if (!user) return;
+    userService.getUsers().then(setUsers).catch(() => {});
+  }, [user]);
 
   const fetchUnreadCount = useCallback(async () => {
     if (!user) return;
@@ -162,12 +171,14 @@ export default function App() {
     ...(user.role === "admin" ? [{ key: "staff", label: "พนักงาน", icon: <Users size={20} /> }] : []),
     { key: "reports", label: "รายงาน", icon: <BarChart3 size={20} /> },
     { key: "notifications", label: "การแจ้งเตือน", icon: <Bell size={20} /> },
+    { key: "holidays", label: "วันหยุด", icon: <CalendarDays size={20} /> },
+    { key: "saturday", label: "เวรเสาร์", icon: <CalendarCheck size={20} /> },
     ...(user.role === "admin" ? [{ key: "settings", label: "ข้อมูลพื้นฐาน", icon: <Database size={20} /> }] : []),
   ];
 
   const tabTitles: Record<string, string> = {
     dashboard: "แดชบอร์ด", projects: "จัดการโปรเจกต์", workload: "ภาระงานทีม", tasks: "จัดการงาน", staff: "จัดการพนักงาน",
-    reports: "รายงาน", notifications: "การแจ้งเตือน", settings: "ข้อมูลพื้นฐาน",
+    reports: "รายงาน", notifications: "การแจ้งเตือน", holidays: "วันหยุดประจำปี", saturday: "ตารางเวรเสาร์", settings: "ข้อมูลพื้นฐาน",
   };
 
   return (
@@ -220,7 +231,7 @@ export default function App() {
           {activeTab === "reports" && (
             <React.Fragment key="reports">
               <Suspense fallback={<PageFallback />}>
-                <ReportsPage refreshTrigger={refreshTrigger} />
+                <ReportsPage user={user} refreshTrigger={refreshTrigger} />
               </Suspense>
             </React.Fragment>
           )}
@@ -236,7 +247,28 @@ export default function App() {
                     await notificationService.markAllRead(user.id);
                     await Promise.all([fetchNotifications(), fetchUnreadCount()]);
                   }}
-                  onViewTask={async (refId) => { const t = await taskService.getTask(refId); setSelectedTask(t); }} />
+                  onViewTask={async (refId) => {
+                    try {
+                      const t = await taskService.getTask(refId);
+                      setSelectedTask(t);
+                    } catch (error) {
+                      console.error("Failed to view task from notification", error);
+                    }
+                  }} />
+              </Suspense>
+            </React.Fragment>
+          )}
+          {activeTab === "holidays" && (
+            <React.Fragment key="holidays">
+              <Suspense fallback={<PageFallback />}>
+                <HolidaysPage user={user} />
+              </Suspense>
+            </React.Fragment>
+          )}
+          {activeTab === "saturday" && (
+            <React.Fragment key="saturday">
+              <Suspense fallback={<PageFallback />}>
+                <SaturdaySchedulePage user={user} users={users} />
               </Suspense>
             </React.Fragment>
           )}
