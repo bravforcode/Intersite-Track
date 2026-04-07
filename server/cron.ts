@@ -1,11 +1,27 @@
 import cron from "node-cron";
 import { findAllTasks } from "./database/queries/task.queries.js";
-import { findAllHolidays, findUpcomingHolidays } from "./database/queries/holiday.queries.js";
+import { findUpcomingHolidays } from "./database/queries/holiday.queries.js";
 import { findUpcomingSaturdaySchedules } from "./database/queries/saturdaySchedule.queries.js";
 import { findAllUsers, findUserById } from "./database/queries/user.queries.js";
 import { lineService } from "./services/line.service.js";
 import { createNotification } from "./database/queries/notification.queries.js";
 import { logger } from "./utils/logger.js";
+
+// ─── Bangkok timezone helpers ─────────────────────────────────────────────────
+
+function bangkokToday(offsetDays = 0): string {
+  const d = new Date();
+  // shift to UTC+7
+  d.setUTCHours(d.getUTCHours() + 7);
+  if (offsetDays !== 0) d.setDate(d.getDate() + offsetDays);
+  return d.toISOString().substring(0, 10);
+}
+
+function bangkokDayOfWeek(): number {
+  const d = new Date();
+  d.setUTCHours(d.getUTCHours() + 7);
+  return d.getDay(); // 0=Sun, 5=Fri, 6=Sat
+}
 
 // ─── Task Deadline Check ──────────────────────────────────────────────────────
 
@@ -25,8 +41,8 @@ export async function checkUpcomingDeadlines() {
       if (alertDays.includes(diffDays)) {
         for (const assignee of (task.assignments || [])) {
           await createNotification(assignee.id, "ใกล้ครบกำหนดส่ง", `งาน "${task.title}" จะครบกำหนดส่งในอีก ${diffDays} วัน`, "task_deadline", task.id);
-          if ((assignee as any).line_user_id) {
-            await lineService.notifyUpcomingDeadline((assignee as any).line_user_id, task.title, task.due_date, diffDays);
+          if (assignee.line_user_id) {
+            await lineService.notifyUpcomingDeadline(assignee.line_user_id, task.title, task.due_date, diffDays);
           }
         }
       }
@@ -52,8 +68,8 @@ async function getAllUsersWithLineId() {
 export async function checkTodayHoliday() {
   logger.info("Checking today holiday...");
   try {
-    const today = new Date().toISOString().substring(0, 10);
-    const holidays = await findAllHolidays();
+    const today = bangkokToday();
+    const holidays = await findUpcomingHolidays(1);
     const todayHoliday = holidays.find(h => h.date === today);
     if (!todayHoliday) return;
 
@@ -70,11 +86,8 @@ export async function checkTodayHoliday() {
 export async function checkTomorrowHoliday() {
   logger.info("Checking tomorrow holiday...");
   try {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().substring(0, 10);
-
-    const holidays = await findAllHolidays();
+    const tomorrowStr = bangkokToday(1);
+    const holidays = await findUpcomingHolidays(2);
     const tomorrowHoliday = holidays.find(h => h.date === tomorrowStr);
     if (!tomorrowHoliday) return;
 
@@ -91,15 +104,7 @@ export async function checkTomorrowHoliday() {
 export async function sendWeeklyHolidaySummary() {
   logger.info("Sending weekly holiday summary...");
   try {
-    const today = new Date();
-    const weekEnd = new Date();
-    weekEnd.setDate(today.getDate() + 7);
-
-    const todayStr = today.toISOString().substring(0, 10);
-    const weekEndStr = weekEnd.toISOString().substring(0, 10);
-
-    const holidays = await findAllHolidays();
-    const weekHolidays = holidays.filter(h => h.date >= todayStr && h.date <= weekEndStr);
+    const weekHolidays = await findUpcomingHolidays(7);
     if (weekHolidays.length === 0) return;
 
     const holidayList = weekHolidays.map(h => `• ${h.name} — ${formatThaiDate(h.date)}`);
@@ -119,19 +124,15 @@ export async function sendWeeklyHolidaySummary() {
 export async function checkFridaySaturdayReminder() {
   logger.info("Checking Friday saturday duty reminder...");
   try {
-    const today = new Date();
-    if (today.getDay() !== 5) return;
+    if (bangkokDayOfWeek() !== 5) return;
 
-    const tomorrow = new Date();
-    tomorrow.setDate(today.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().substring(0, 10);
-
+    const tomorrowStr = bangkokToday(1);
     const schedules = await findUpcomingSaturdaySchedules(2);
     const tomorrowSchedule = schedules.find(s => s.date === tomorrowStr);
     if (!tomorrowSchedule) return;
 
-    for (const userId of tomorrowSchedule.user_ids) {
-      const user = await findUserById(userId);
+    const users = await Promise.all(tomorrowSchedule.user_ids.map(id => findUserById(id)));
+    for (const user of users) {
       if (user?.line_user_id) {
         await lineService.notifySaturdayDutyPersonal(user.line_user_id, formatThaiDate(tomorrowStr));
       }
@@ -145,17 +146,16 @@ export async function checkFridaySaturdayReminder() {
 export async function checkSaturdayDuty() {
   logger.info("Checking saturday duty...");
   try {
-    const today = new Date();
-    if (today.getDay() !== 6) return;
+    if (bangkokDayOfWeek() !== 6) return;
 
-    const todayStr = today.toISOString().substring(0, 10);
+    const todayStr = bangkokToday();
     const schedules = await findUpcomingSaturdaySchedules(1);
     const todaySchedule = schedules.find(s => s.date === todayStr);
     if (!todaySchedule) return;
 
+    const users = await Promise.all(todaySchedule.user_ids.map(id => findUserById(id)));
     const names: string[] = [];
-    for (const userId of todaySchedule.user_ids) {
-      const user = await findUserById(userId);
+    for (const user of users) {
       if (user) {
         names.push(`${user.first_name} ${user.last_name}`);
         if (user.line_user_id) {

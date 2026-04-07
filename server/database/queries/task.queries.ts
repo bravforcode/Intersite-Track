@@ -1,5 +1,4 @@
-import type { PoolClient } from "pg";
-import { supabaseAdmin } from "../../config/supabase.js";
+import { db, FieldValue } from "../../config/firebase-admin.js";
 import { getChecklistRowsByTaskIds, summarizeChecklistRows } from "./checklist.queries.js";
 
 export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
@@ -9,26 +8,27 @@ export interface TaskFilters {
   search?: string;
   status?: TaskStatus;
   priority?: TaskPriority;
-  assignee?: number | string;
+  assignee?: string;
   date_from?: string;
   date_to?: string;
   dateFrom?: string;
   dateTo?: string;
-  user_id?: number | string;
-  userId?: number | string;
+  user_id?: string;
+  userId?: string;
 }
 
 export interface TaskAssignment {
-  id: number;
+  id: string;
   first_name: string;
   last_name: string;
+  line_user_id?: string | null;
 }
 
 export interface Task {
-  id: number;
+  id: string;
   title: string;
   description: string | null;
-  task_type_id: number | null;
+  task_type_id: string | null;
   task_type_name?: string;
   priority: TaskPriority;
   status: TaskStatus;
@@ -36,10 +36,10 @@ export interface Task {
   progress: number;
   created_at: string;
   updated_at: string;
-  created_by: number;
+  created_by: string;
   creator_name: string;
   assignments?: TaskAssignment[];
-  project_id?: number | null;
+  project_id?: string | null;
   project_name?: string;
   tags?: string[];
   is_blocked?: boolean;
@@ -48,143 +48,66 @@ export interface Task {
 export interface CreateTaskDTO {
   title: string;
   description?: string;
-  task_type_id?: number | null;
+  task_type_id?: string | null;
   priority?: TaskPriority;
   due_date?: string | null;
-  created_by: number;
-  project_id?: number | null;
+  created_by: string;
+  project_id?: string | null;
   tags?: string[];
+  creator_name?: string;
+  task_type_name?: string;
 }
 
 export interface UpdateTaskDTO {
   title?: string;
   description?: string;
-  task_type_id?: number | null;
+  task_type_id?: string | null;
   priority?: TaskPriority;
   status?: TaskStatus;
   due_date?: string | null;
-  project_id?: number | null;
+  project_id?: string | null;
   tags?: string[];
 }
 
-interface TaskRow {
-  id: number;
-  title: string;
-  description: string | null;
-  task_type_id: number | null;
-  priority: TaskPriority;
-  status: TaskStatus;
-  due_date: string | null;
-  progress: number;
-  tags?: string[];
-  created_at: string;
-  updated_at: string;
-  created_by: number;
-  project_id: number | null;
-  project?: { name: string } | Array<{ name: string }> | null;
-  blockers?: any[];
-  creator:
-    | { first_name: string | null; last_name: string | null }
-    | Array<{ first_name: string | null; last_name: string | null }>
-    | null;
-  task_type: { name: string | null } | Array<{ name: string | null }> | null;
-  task_assignments?:
-    | Array<{ user: TaskAssignment | TaskAssignment[] | null }>
-    | null;
-}
-
-function pickOne<T>(value: T | T[] | null | undefined): T | null {
-  if (!value) return null;
-  return Array.isArray(value) ? (value[0] ?? null) : value;
-}
-
-function mapTask(row: TaskRow): Task {
-  const creator = pickOne(row.creator);
-  const taskType = pickOne(row.task_type);
-  const project = pickOne(row.project);
-  const creatorFirst = creator?.first_name ?? "";
-  const creatorLast = creator?.last_name ?? "";
-
+function mapTask(id: string, data: FirebaseFirestore.DocumentData): Task {
   return {
-    id: row.id,
-    title: row.title,
-    description: row.description,
-    task_type_id: row.task_type_id,
-    task_type_name: taskType?.name ?? undefined,
-    priority: row.priority,
-    status: row.status,
-    due_date: row.due_date,
-    progress: row.progress,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
-    created_by: row.created_by,
-    creator_name: `${creatorFirst} ${creatorLast}`.trim(),
-    project_id: row.project_id,
-    project_name: project?.name ?? undefined,
-    tags: row.tags ?? [],
-    is_blocked: row.blockers?.some((b: any) => b.status === 'active' || b.status === 'open' || b.status === 'blocked') ?? false,
-    assignments: (row.task_assignments ?? [])
-      .map((assignment) => pickOne(assignment.user))
-      .filter((u): u is TaskAssignment => u !== null),
+    id,
+    title: data.title ?? "",
+    description: data.description ?? null,
+    task_type_id: data.task_type_id ?? null,
+    task_type_name: data.task_type_name ?? undefined,
+    priority: data.priority ?? "medium",
+    status: data.status ?? "pending",
+    due_date: data.due_date ?? null,
+    progress: data.progress ?? 0,
+    created_at: data.created_at ?? new Date().toISOString(),
+    updated_at: data.updated_at ?? new Date().toISOString(),
+    created_by: data.created_by ?? "",
+    creator_name: data.creator_name ?? "",
+    project_id: data.project_id ?? null,
+    project_name: data.project_name ?? undefined,
+    tags: data.tags ?? [],
+    is_blocked: data.is_blocked ?? false,
+    assignments: (data.assignee_details ?? []) as TaskAssignment[],
   };
 }
 
-async function fetchTaskRows() {
-  const { data, error } = await supabaseAdmin
-    .from("tasks")
-    .select(`
-      id,
-      title,
-      description,
-      task_type_id,
-      priority,
-      status,
-      due_date,
-      progress,
-      tags,
-      created_at,
-      updated_at,
-      created_by,
-      project_id,
-      project:projects(name),
-      blockers:blockers(id, status),
-      creator:users!tasks_created_by_fkey(first_name,last_name),
-      task_type:task_types!tasks_task_type_id_fkey(name),
-      task_assignments(user:users!task_assignments_user_id_fkey(id,first_name,last_name))
-    `)
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
-  return (data ?? []) as unknown as TaskRow[];
-}
-
 async function applyChecklistState(tasks: Task[]): Promise<Task[]> {
-  if (tasks.length === 0) {
-    return tasks;
-  }
+  if (tasks.length === 0) return tasks;
 
-  const checklistRows = await getChecklistRowsByTaskIds(tasks.map((task) => task.id));
-  const rowsByTaskId = new Map<number, typeof checklistRows>();
-
+  const checklistRows = await getChecklistRowsByTaskIds(tasks.map(t => t.id));
+  const rowsByTaskId = new Map<string, typeof checklistRows>();
   for (const row of checklistRows) {
     const rows = rowsByTaskId.get(row.task_id) ?? [];
     rows.push(row);
     rowsByTaskId.set(row.task_id, rows);
   }
 
-  return tasks.map((task) => {
+  return tasks.map(task => {
     const rows = rowsByTaskId.get(task.id) ?? [];
     const summary = summarizeChecklistRows(rows, task.status);
-
-    if (!summary.hasChecklist) {
-      return task;
-    }
-
-    return {
-      ...task,
-      progress: summary.progress,
-      status: summary.status,
-    };
+    if (!summary.hasChecklist) return task;
+    return { ...task, progress: summary.progress, status: summary.status };
   });
 }
 
@@ -193,110 +116,74 @@ function normalizeFilters(filters: TaskFilters = {}) {
     search: filters.search?.trim().toLowerCase(),
     status: filters.status,
     priority: filters.priority,
-    assignee:
-      filters.assignee !== undefined && filters.assignee !== ""
-        ? Number(filters.assignee)
-        : undefined,
+    assignee: filters.assignee || undefined,
     dateFrom: filters.dateFrom ?? filters.date_from,
     dateTo: filters.dateTo ?? filters.date_to,
-    userId:
-      filters.userId !== undefined && filters.userId !== ""
-        ? Number(filters.userId)
-        : filters.user_id !== undefined && filters.user_id !== ""
-          ? Number(filters.user_id)
-          : undefined,
+    userId: filters.userId || filters.user_id || undefined,
   };
 }
 
 export async function findAllTasks(filters: TaskFilters = {}): Promise<Task[]> {
-  const normalized = normalizeFilters(filters);
-  const tasks = await applyChecklistState((await fetchTaskRows()).map(mapTask));
+  const snap = await db.collection("tasks").orderBy("created_at", "desc").get();
+  const tasks = snap.docs.map(doc => mapTask(doc.id, doc.data()));
+  const withChecklists = await applyChecklistState(tasks);
 
-  return tasks.filter((task) => {
+  const normalized = normalizeFilters(filters);
+
+  return withChecklists.filter(task => {
     if (normalized.search) {
       const haystack = `${task.title} ${task.description ?? ""}`.toLowerCase();
       if (!haystack.includes(normalized.search)) return false;
     }
-
     if (normalized.status && task.status !== normalized.status) return false;
     if (normalized.priority && task.priority !== normalized.priority) return false;
-
     if (normalized.assignee) {
-      const isAssigned = task.assignments?.some((assignment) => assignment.id === normalized.assignee) ?? false;
-      if (!isAssigned) return false;
+      if (!task.assignments?.some(a => a.id === normalized.assignee)) return false;
     }
-
     if (normalized.userId) {
-      const isAssigned = task.assignments?.some((assignment) => assignment.id === normalized.userId) ?? false;
-      if (!isAssigned) return false;
+      if (!task.assignments?.some(a => a.id === normalized.userId)) return false;
     }
-
     if (normalized.dateFrom && task.due_date && task.due_date < normalized.dateFrom) return false;
     if (normalized.dateFrom && !task.due_date) return false;
     if (normalized.dateTo && task.due_date && task.due_date > normalized.dateTo) return false;
     if (normalized.dateTo && !task.due_date) return false;
-
     return true;
   });
 }
 
-export async function findTaskById(id: number): Promise<Task | null> {
-  const { data, error } = await supabaseAdmin
-    .from("tasks")
-    .select(`
-      id,
-      title,
-      description,
-      task_type_id,
-      priority,
-      status,
-      due_date,
-      progress,
-      created_at,
-      updated_at,
-      created_by,
-      project_id,
-      project:projects(name),
-      blockers:blockers(id, status),
-      creator:users!tasks_created_by_fkey(first_name,last_name),
-      task_type:task_types!tasks_task_type_id_fkey(name),
-      task_assignments(user:users!task_assignments_user_id_fkey(id,first_name,last_name))
-    `)
-    .eq("id", id)
-    .maybeSingle();
-
-  if (error) throw error;
-  if (!data) return null;
-
-  const [task] = await applyChecklistState([mapTask(data as unknown as TaskRow)]);
+export async function findTaskById(id: string): Promise<Task | null> {
+  const doc = await db.collection("tasks").doc(id).get();
+  if (!doc.exists) return null;
+  const [task] = await applyChecklistState([mapTask(doc.id, doc.data()!)]);
   return task ?? null;
 }
 
-export async function createTask(dto: CreateTaskDTO): Promise<number> {
-  const { data, error } = await supabaseAdmin
-    .from("tasks")
-    .insert({
-      title: dto.title,
-      description: dto.description ?? null,
-      task_type_id: dto.task_type_id ?? null,
-      priority: dto.priority ?? "medium",
-      due_date: dto.due_date ?? null,
-      created_by: dto.created_by,
-      project_id: dto.project_id ?? null,
-      tags: dto.tags ?? [],
-    })
-    .select("id")
-    .single();
-
-  if (error || !data) throw error ?? new Error("Failed to create task");
-  return data.id;
+export async function createTask(dto: CreateTaskDTO): Promise<string> {
+  const ref = db.collection("tasks").doc();
+  await ref.set({
+    title: dto.title,
+    description: dto.description ?? null,
+    task_type_id: dto.task_type_id ?? null,
+    task_type_name: dto.task_type_name ?? null,
+    priority: dto.priority ?? "medium",
+    status: "pending",
+    due_date: dto.due_date ?? null,
+    progress: 0,
+    created_by: dto.created_by,
+    creator_name: dto.creator_name ?? "",
+    project_id: dto.project_id ?? null,
+    tags: dto.tags ?? [],
+    assignees: [],
+    assignee_details: [],
+    is_blocked: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+  return ref.id;
 }
 
-export async function updateTask(id: number, dto: UpdateTaskDTO): Promise<void> {
-  const payload: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-  };
-
+export async function updateTask(id: string, dto: UpdateTaskDTO): Promise<void> {
+  const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (dto.title !== undefined) payload.title = dto.title;
   if (dto.description !== undefined) payload.description = dto.description ?? null;
   if (dto.task_type_id !== undefined) payload.task_type_id = dto.task_type_id ?? null;
@@ -305,119 +192,70 @@ export async function updateTask(id: number, dto: UpdateTaskDTO): Promise<void> 
   if (dto.due_date !== undefined) payload.due_date = dto.due_date ?? null;
   if (dto.project_id !== undefined) payload.project_id = dto.project_id ?? null;
   if (dto.tags !== undefined) payload.tags = dto.tags;
-
-  const { error } = await supabaseAdmin
-    .from("tasks")
-    .update(payload)
-    .eq("id", id);
-
-  if (error) throw error;
+  await db.collection("tasks").doc(id).update(payload);
 }
 
-export async function deleteTask(id: number): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from("tasks")
-    .delete()
-    .eq("id", id);
-
-  if (error) throw error;
+export async function deleteTask(id: string): Promise<void> {
+  await db.collection("tasks").doc(id).delete();
 }
 
-export async function updateTaskStatus(id: number, status: TaskStatus, progress: number): Promise<void> {
-  const { error } = await supabaseAdmin
-    .from("tasks")
-    .update({
-      status,
-      progress,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
-
-  if (error) throw error;
+export async function updateTaskStatus(id: string, status: TaskStatus, progress: number): Promise<void> {
+  await db.collection("tasks").doc(id).update({
+    status,
+    progress,
+    updated_at: new Date().toISOString(),
+  });
 }
 
-export async function getTaskAssignments(taskId: number): Promise<TaskAssignment[]> {
-  const { data, error } = await supabaseAdmin
-    .from("task_assignments")
-    .select("user:users!task_assignments_user_id_fkey(id,first_name,last_name)")
-    .eq("task_id", taskId);
-
-  if (error) throw error;
-
-  return (data ?? [])
-    .map((row: any) => row.user)
-    .filter((user): user is TaskAssignment => Boolean(user));
+export async function getTaskAssignments(taskId: string): Promise<TaskAssignment[]> {
+  const doc = await db.collection("tasks").doc(taskId).get();
+  return doc.exists ? (doc.data()?.assignee_details ?? []) : [];
 }
 
-export async function getCurrentAssignments(taskId: number): Promise<number[]> {
-  const { data, error } = await supabaseAdmin
-    .from("task_assignments")
-    .select("user_id")
-    .eq("task_id", taskId)
-    .order("user_id", { ascending: true });
-
-  if (error) throw error;
-  return (data ?? []).map((row: any) => row.user_id);
+export async function getCurrentAssignments(taskId: string): Promise<string[]> {
+  const doc = await db.collection("tasks").doc(taskId).get();
+  return doc.exists ? (doc.data()?.assignees ?? []) : [];
 }
 
 export async function setTaskAssignments(
-  _client: PoolClient | null | undefined,
-  taskId: number,
-  userIds: number[]
+  _client: null | undefined,
+  taskId: string,
+  userIds: string[]
 ): Promise<void> {
-  const { error: deleteError } = await supabaseAdmin
-    .from("task_assignments")
-    .delete()
-    .eq("task_id", taskId);
+  let assigneeDetails: TaskAssignment[] = [];
 
-  if (deleteError) throw deleteError;
-
-  if (userIds.length === 0) {
-    return;
+  if (userIds.length > 0) {
+    const userDocs = await Promise.all(userIds.map(id => db.collection("users").doc(id).get()));
+    assigneeDetails = userDocs
+      .filter(doc => doc.exists)
+      .map(doc => ({
+        id: doc.id,
+        first_name: doc.data()?.first_name ?? "",
+        last_name: doc.data()?.last_name ?? "",
+      }));
   }
 
-  const { error: insertError } = await supabaseAdmin
-    .from("task_assignments")
-    .insert(userIds.map((userId) => ({ task_id: taskId, user_id: userId })));
-
-  if (insertError) throw insertError;
+  await db.collection("tasks").doc(taskId).update({
+    assignees: userIds,
+    assignee_details: assigneeDetails,
+    updated_at: new Date().toISOString(),
+  });
 }
 
-export async function getTaskBlockers(taskId: number): Promise<any[]> {
-  const { data, error } = await supabaseAdmin
-    .from("blockers")
-    .select("*, reporter:users!blockers_reported_by_fkey(id, first_name, last_name)")
-    .eq("task_id", taskId)
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
-  return data ?? [];
+export async function getTaskBlockers(taskId: string): Promise<any[]> {
+  const snap = await db
+    .collection("task_blockers")
+    .where("task_id", "==", taskId)
+    .orderBy("created_at", "desc")
+    .get();
+  return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 }
 
-export async function findAll(filters?: TaskFilters): Promise<Task[]> {
-  return findAllTasks(filters);
-}
-
-export async function findById(id: number): Promise<Task | null> {
-  return findTaskById(id);
-}
-
-export async function create(dto: CreateTaskDTO): Promise<number> {
-  return createTask(dto);
-}
-
-export async function update(id: number, dto: UpdateTaskDTO): Promise<void> {
-  await updateTask(id, dto);
-}
-
-export async function updateStatus(id: number, status: TaskStatus, progress: number): Promise<void> {
-  await updateTaskStatus(id, status, progress);
-}
-
-export async function getAssignments(taskId: number): Promise<TaskAssignment[]> {
-  return getTaskAssignments(taskId);
-}
-
-export async function setAssignments(taskId: number, userIds: number[]): Promise<void> {
-  await setTaskAssignments(undefined, taskId, userIds);
-}
+export const findAll = findAllTasks;
+export const findById = findTaskById;
+export const create = createTask;
+export const update = updateTask;
+export const updateStatus = updateTaskStatus;
+export const getAssignments = getTaskAssignments;
+export const setAssignments = (taskId: string, userIds: string[]) =>
+  setTaskAssignments(undefined, taskId, userIds);
