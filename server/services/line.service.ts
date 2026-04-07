@@ -52,20 +52,17 @@ export const lineService = {
   async notifyNewTask(to: string, taskTitle: string, projectName?: string): Promise<boolean> {
     const projectInfo = projectName ? `ในโปรเจกต์: ${projectName}` : "";
     const msg = `🔔 มีงานใหม่มอบหมายถึงคุณ!\n\nชื่องาน: ${taskTitle}\n${projectInfo}\n\nกรุณาเข้าตรวจสอบในระบบ Intersite Track`;
-    await this.sendToUserAndGroup(to, msg);
-    return true;
+    return pushMessage(to, msg);
   },
 
   async notifyBlocker(to: string, taskTitle: string, description: string): Promise<boolean> {
     const msg = `⚠️ แจ้งเตือนงานติดปัญหา (Blocker)!\n\nงาน: ${taskTitle}\nปัญหา: ${description}\n\nกรุณาเร่งดำเนินการแก้ไขหรือตรวจสอบ`;
-    await this.sendToUserAndGroup(to, msg);
-    return true;
+    return pushMessage(to, msg);
   },
 
   async notifyUpcomingDeadline(to: string, taskTitle: string, dueDate: string, daysLeft: number): Promise<boolean> {
     const msg = `⏰ แจ้งเตือนกำหนดส่งงาน!\n\nงาน: ${taskTitle}\nกำหนดส่ง: ${dueDate}\n(เหลือเวลาอีก ${daysLeft} วัน)\n\nกรุณาเร่งดำเนินการให้เสร็จสิ้นตามกำหนด`;
-    await this.sendToUserAndGroup(to, msg);
-    return true;
+    return pushMessage(to, msg);
   },
 
   async notifyHolidayPersonal(to: string, holidayName: string, date: string, type: "tomorrow" | "today" | "weekly_summary", holidayList?: string[]): Promise<boolean> {
@@ -76,6 +73,10 @@ export const lineService = {
       msg = `🌟 วันนี้วันหยุด!\n\n${holidayName}\n\nขอให้มีความสุขกับวันหยุดนะครับ 🎊`;
     } else if (type === "weekly_summary") {
       msg = `📅 สรุปวันหยุดสัปดาห์นี้:\n\n${holidayList?.join("\n") ?? "ไม่มีวันหยุด"}\n\nทำงานดีๆ นะครับ 💪`;
+    }
+    if (!msg) {
+      logger.warn(`notifyHolidayPersonal: unhandled type "${type}"`);
+      return false;
     }
     return pushMessage(to, msg);
   },
