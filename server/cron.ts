@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { findAllTasks } from "./database/queries/task.queries.js";
-import { findAllHolidays } from "./database/queries/holiday.queries.js";
+import { findAllHolidays, findUpcomingHolidays } from "./database/queries/holiday.queries.js";
 import { findUpcomingSaturdaySchedules } from "./database/queries/saturdaySchedule.queries.js";
 import { findAllUsers, findUserById } from "./database/queries/user.queries.js";
 import { lineService } from "./services/line.service.js";
