@@ -10,6 +10,7 @@ import trelloRoutes from "./trello.routes.js";
 import projectRoutes from "./project.routes.js";
 import lineWebhookRoutes from "./lineWebhook.routes.js";
 import holidayRoutes from "./holiday.routes.js";
+import saturdayScheduleRoutes from "./saturdaySchedule.routes.js";
 import { requireAuth, requireRole } from "../middleware/auth.middleware.js";
 
 const router = Router();
@@ -26,6 +27,7 @@ router.use("/stats", reportRoutes);
 router.use("/trello", trelloRoutes);
 router.use("/line", lineWebhookRoutes);
 router.use("/holidays", holidayRoutes);
+router.use("/saturday-schedules", saturdayScheduleRoutes);
 
 router.get("/settings/line-group", requireAuth, requireRole("admin"), async (req, res, next) => {
   try {
