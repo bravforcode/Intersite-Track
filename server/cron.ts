@@ -13,7 +13,7 @@ function bangkokToday(offsetDays = 0): string {
   const d = new Date();
   // shift to UTC+7
   d.setUTCHours(d.getUTCHours() + 7);
-  if (offsetDays !== 0) d.setDate(d.getDate() + offsetDays);
+  if (offsetDays !== 0) d.setUTCDate(d.getUTCDate() + offsetDays);
   return d.toISOString().substring(0, 10);
 }
 
