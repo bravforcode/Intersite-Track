@@ -40,16 +40,33 @@ router.get("/settings/line-group", requireAuth, requireRole("admin"), async (req
 // Temporary debug endpoint — remove after fixing
 router.get("/debug/firebase", async (req, res) => {
   try {
-    const { adminAuth } = await import("../config/firebase-admin.js");
-    const projectId = process.env.FIREBASE_PROJECT_ID;
-    const hasKey = !!process.env.FIREBASE_PRIVATE_KEY;
     const rawKey = process.env.FIREBASE_PRIVATE_KEY ?? "";
-    const keyStart = rawKey.substring(0, 50);
     const isBase64 = !rawKey.includes("-----BEGIN");
     const decoded = isBase64 ? Buffer.from(rawKey, "base64").toString("utf-8") : rawKey.replace(/\\n/g, "\n");
-    const decodedStart = decoded.substring(0, 40);
-    const hasRealNewlines = decoded.includes("\n");
-    res.json({ ok: true, projectId, hasKey, keyStart, isBase64, decodedStart, hasRealNewlines });
+
+    // Try to actually use adminAuth and Firestore
+    let authOk = false, authErr = "";
+    let firestoreOk = false, firestoreErr = "";
+    try {
+      const { adminAuth: a } = await import("../config/firebase-admin.js");
+      authOk = true;
+    } catch (e: any) { authErr = e.message; }
+    try {
+      const { db } = await import("../config/firebase-admin.js");
+      await db.collection("users").limit(1).get();
+      firestoreOk = true;
+    } catch (e: any) { firestoreErr = e.message?.substring(0, 200); }
+
+    res.json({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      hasKey: !!rawKey,
+      isBase64,
+      hasRealNewlines: decoded.includes("\n"),
+      decodedStart: decoded.substring(0, 40),
+      authOk, authErr,
+      firestoreOk, firestoreErr,
+    });
   } catch (err: any) {
     res.status(500).json({ ok: false, error: err.message });
   }
