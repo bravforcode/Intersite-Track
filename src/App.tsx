@@ -119,7 +119,14 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    userService.getUsers().then(setUsers).catch(() => {});
+    // SECURITY FIX (Task 1.3): Use appropriate endpoint based on user role
+    // Admins: /api/users (full directory with all fields)
+    // Staff: /api/users/task-context (limited to task-related users, no email/LINE_ID)
+    const fetchUsers = user.role === "admin"
+      ? userService.getUsers()
+      : userService.getTaskContextUsers();
+
+    fetchUsers.then(setUsers).catch(() => {});
   }, [user]);
 
   const fetchUnreadCount = useCallback(async () => {

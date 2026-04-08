@@ -48,10 +48,37 @@ export async function getTasksWorkspace(req: Request, res: Response, next: NextF
       name: doc.data().name,
     }));
 
-    const [tasks, users] = await Promise.all([
+    const [tasks] = await Promise.all([
       findAllTasks(filters),
-      findAllUsers(),
     ]);
+
+    let users: any[] = [];
+
+    // SECURITY FIX: Only admins can fetch all users. Staff see task-context users only.
+    if (req.user?.role === "admin") {
+      const allUsers = await findAllUsers();
+      users = allUsers.map(({ password: _pw, ...u }) => u);
+    } else if (req.user?.role === "staff") {
+      // Staff: Extract users from their assigned tasks (safe fields only)
+      const userIds = new Set<string>();
+      for (const task of tasks) {
+        if (task.assignments) {
+          for (const assignment of task.assignments) {
+            userIds.add(assignment.id);
+          }
+        }
+      }
+      users = Array.from(userIds).map((id) => ({
+        id,
+        first_name: tasks
+          .flatMap((t) => t.assignments || [])
+          .find((a) => a.id === id)?.first_name || "",
+        last_name: tasks
+          .flatMap((t) => t.assignments || [])
+          .find((a) => a.id === id)?.last_name || "",
+        // NO email, NO line_user_id for staff
+      }));
+    }
 
     res.json({
       tasks,

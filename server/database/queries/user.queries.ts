@@ -160,6 +160,40 @@ export async function getUserTasks(userId: string): Promise<Record<string, unkno
   return tasks as unknown as Record<string, unknown>[];
 }
 
+/**
+ * Get users related to a staff member's assigned tasks.
+ * Returns only safe fields: id, first_name, last_name (no email, no line_user_id)
+ * Used for task context when staff needs to see team members on their projects.
+ */
+export async function getTaskContextUsers(userId: string): Promise<Array<{ id: string; first_name: string; last_name: string }>> {
+  const tasks = await findAllTasks({ userId });
+
+  // Extract unique user IDs from task assignments
+  const userIds = new Set<string>();
+  for (const task of tasks) {
+    if (task.assignments) {
+      for (const assignment of task.assignments) {
+        userIds.add(assignment.id);
+      }
+    }
+  }
+
+  // Return only safe fields for each user
+  const result: Array<{ id: string; first_name: string; last_name: string }> = [];
+  for (const uid of userIds) {
+    const user = await findUserById(uid);
+    if (user) {
+      result.push({
+        id: user.id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+      });
+    }
+  }
+
+  return result;
+}
+
 export async function updatePassword(): Promise<void> {
   throw new Error("Passwords are managed via Firebase Auth. Use auth.controller.changePassword instead.");
 }

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import {
-  findAllUsers, findUserById, createUser, updateUser, deleteUser, getUserTasks,
+  findAllUsers, findUserById, createUser, updateUser, deleteUser, getUserTasks, getTaskContextUsers,
 } from "../database/queries/user.queries.js";
 import { adminAuth } from "../config/firebase-admin.js";
 
@@ -117,5 +117,23 @@ export async function getUserTasksHandler(req: Request, res: Response, next: Nex
 
     const tasks = await getUserTasks(requestedUserId);
     res.json(tasks);
+  } catch (err) { next(err); }
+}
+
+/**
+ * GET /api/users/task-context
+ * Returns users related to the current staff member's assigned tasks.
+ * Only returns safe fields: id, first_name, last_name (NO email, NO line_user_id)
+ * Used by staff to see team members on their projects while protecting PII.
+ */
+export async function getTaskContextUsersHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: "กรุณาเข้าสู่ระบบก่อน" });
+      return;
+    }
+
+    const users = await getTaskContextUsers(req.user.id);
+    res.json(users);
   } catch (err) { next(err); }
 }

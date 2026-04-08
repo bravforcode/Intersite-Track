@@ -10,6 +10,7 @@ export interface LineLinkStatus {
 
 export const userService = {
   getUsers: () => api.get<User[]>("/api/users"),
+  getTaskContextUsers: () => api.get<Array<{ id: string; first_name: string; last_name: string }>>("/api/users/task-context"),
   getUser: (id: string) => api.get<User>(`/api/users/${id}`),
   createUser: (dto: CreateUserDTO) => api.post<{ id: string }>("/api/users", dto),
   updateUser: (id: string, dto: UpdateUserDTO) => api.put<void>(`/api/users/${id}`, dto),
