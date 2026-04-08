@@ -1,11 +1,12 @@
 import cron from "node-cron";
 import { findAllTasks } from "./database/queries/task.queries.js";
-import { findUpcomingHolidays } from "./database/queries/holiday.queries.js";
-import { findUpcomingSaturdaySchedules } from "./database/queries/saturdaySchedule.queries.js";
+import { findHolidayByDate, findUpcomingHolidays } from "./database/queries/holiday.queries.js";
+import { findSaturdayScheduleByDate, findUpcomingSaturdaySchedules } from "./database/queries/saturdaySchedule.queries.js";
 import { findAllUsers, findUserById } from "./database/queries/user.queries.js";
 import { lineService } from "./services/line.service.js";
 import { createNotification } from "./database/queries/notification.queries.js";
 import { logger } from "./utils/logger.js";
+import { classifyOperationalDay, formatThaiDate } from "./utils/dayStatus.js";
 
 // ─── Bangkok timezone helpers ─────────────────────────────────────────────────
 
@@ -55,47 +56,50 @@ export async function checkUpcomingDeadlines() {
 
 // ─── Holiday Notifications ───────────────────────────────────────────────────
 
-function formatThaiDate(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
-}
-
 async function getAllUsersWithLineId() {
   const users = await findAllUsers();
   return users.filter(u => u.line_user_id);
 }
 
-export async function checkTodayHoliday() {
-  logger.info("Checking today holiday...");
-  try {
-    const today = bangkokToday();
-    const holidays = await findUpcomingHolidays(1);
-    const todayHoliday = holidays.find(h => h.date === today);
-    if (!todayHoliday) return;
+async function sendDailyStatusNotifications(reference: "today" | "tomorrow", offsetDays: number) {
+  const targetDate = bangkokToday(offsetDays);
+  const [holiday, saturdaySchedule, users] = await Promise.all([
+    findHolidayByDate(targetDate),
+    findSaturdayScheduleByDate(targetDate),
+    getAllUsersWithLineId(),
+  ]);
 
-    const users = await getAllUsersWithLineId();
-    for (const user of users) {
-      await lineService.notifyHolidayPersonal(user.line_user_id!, todayHoliday.name, formatThaiDate(todayHoliday.date), "today");
-    }
-    logger.info(`Sent today holiday notification: ${todayHoliday.name}`);
+  const saturdayDutyUserIds = new Set(saturdaySchedule?.user_ids ?? []);
+  for (const user of users) {
+    const status = classifyOperationalDay({
+      date: targetDate,
+      holidayName: holiday?.name ?? null,
+      hasSaturdayDuty: saturdayDutyUserIds.has(user.id),
+    });
+
+    await lineService.notifyDailyStatus(user.line_user_id!, reference, status);
+  }
+
+  logger.info(`Sent ${reference} day-status notifications for ${targetDate}`, {
+    holiday: holiday?.name ?? null,
+    saturdayDutyCount: saturdayDutyUserIds.size,
+    recipients: users.length,
+  });
+}
+
+export async function checkTodayHoliday() {
+  logger.info("Checking today day status...");
+  try {
+    await sendDailyStatusNotifications("today", 0);
   } catch (err: any) {
     logger.error("Error in checkTodayHoliday", { error: err.message });
   }
 }
 
 export async function checkTomorrowHoliday() {
-  logger.info("Checking tomorrow holiday...");
+  logger.info("Checking tomorrow day status...");
   try {
-    const tomorrowStr = bangkokToday(1);
-    const holidays = await findUpcomingHolidays(2);
-    const tomorrowHoliday = holidays.find(h => h.date === tomorrowStr);
-    if (!tomorrowHoliday) return;
-
-    const users = await getAllUsersWithLineId();
-    for (const user of users) {
-      await lineService.notifyHolidayPersonal(user.line_user_id!, tomorrowHoliday.name, formatThaiDate(tomorrowHoliday.date), "tomorrow");
-    }
-    logger.info(`Sent tomorrow holiday notification: ${tomorrowHoliday.name}`);
+    await sendDailyStatusNotifications("tomorrow", 1);
   } catch (err: any) {
     logger.error("Error in checkTomorrowHoliday", { error: err.message });
   }
@@ -176,11 +180,11 @@ export async function checkSaturdayDuty() {
 
 // ─── Cron Schedules ──────────────────────────────────────────────────────────
 
-// Task deadlines + วันหยุดวันนี้: ทุกวัน 08:00
+// Task deadlines + สถานะวันนี้: ทุกวัน 08:00
 cron.schedule("0 8 * * *", checkUpcomingDeadlines, { timezone: "Asia/Bangkok" });
 cron.schedule("0 8 * * *", checkTodayHoliday, { timezone: "Asia/Bangkok" });
 
-// วันหยุดพรุ่งนี้: ทุกวัน 20:00
+// สถานะพรุ่งนี้: ทุกวัน 20:00
 cron.schedule("0 20 * * *", checkTomorrowHoliday, { timezone: "Asia/Bangkok" });
 
 // สรุปวันหยุดสัปดาห์: ทุกวันจันทร์ 08:00

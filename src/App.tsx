@@ -1,6 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useState } from "react";
-import { LayoutDashboard, Users, ClipboardList, Bell, BarChart3, Database, Briefcase, BarChartHorizontal, CalendarDays, CalendarCheck } from "lucide-react";
-import { AnimatePresence } from "motion/react";
+import { LayoutDashboard, Users, ClipboardList, Bell, BarChart3, Database, Briefcase, BarChartHorizontal, CalendarDays, CalendarCheck, Link2 } from "lucide-react";
 
 import { auth } from "./lib/firebase";
 import { authService } from "./services/authService";
@@ -56,6 +55,9 @@ const HolidaysPage = lazy(() =>
 const SaturdaySchedulePage = lazy(() =>
   import("./components/saturday/SaturdaySchedulePage").then((m) => ({ default: m.SaturdaySchedulePage }))
 );
+const LineLinkPage = lazy(() =>
+  import("./components/line/LineLinkPage").then((m) => ({ default: m.LineLinkPage }))
+);
 
 function PageFallback() {
   return (
@@ -83,6 +85,11 @@ export default function App() {
   const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
   const triggerRefresh = useCallback(() => setRefreshTrigger((prev) => prev + 1), []);
+
+  const updateCurrentUser = useCallback((nextUser: User) => {
+    setUser(nextUser);
+    localStorage.setItem("user", JSON.stringify(nextUser));
+  }, []);
 
   useEffect(() => {
     const saved = authService.getStoredUser();
@@ -171,6 +178,7 @@ export default function App() {
     ...(user.role === "admin" ? [{ key: "staff", label: "พนักงาน", icon: <Users size={20} /> }] : []),
     { key: "reports", label: "รายงาน", icon: <BarChart3 size={20} /> },
     { key: "notifications", label: "การแจ้งเตือน", icon: <Bell size={20} /> },
+    { key: "lineLink", label: "เชื่อม LINE", icon: <Link2 size={20} /> },
     { key: "holidays", label: "วันหยุด", icon: <CalendarDays size={20} /> },
     { key: "saturday", label: "เวรเสาร์", icon: <CalendarCheck size={20} /> },
     ...(user.role === "admin" ? [{ key: "settings", label: "ข้อมูลพื้นฐาน", icon: <Database size={20} /> }] : []),
@@ -178,7 +186,125 @@ export default function App() {
 
   const tabTitles: Record<string, string> = {
     dashboard: "แดชบอร์ด", projects: "จัดการโปรเจกต์", workload: "ภาระงานทีม", tasks: "จัดการงาน", staff: "จัดการพนักงาน",
-    reports: "รายงาน", notifications: "การแจ้งเตือน", holidays: "วันหยุดประจำปี", saturday: "ตารางเวรเสาร์", settings: "ข้อมูลพื้นฐาน",
+    reports: "รายงาน", notifications: "การแจ้งเตือน", lineLink: "เชื่อม LINE", holidays: "วันหยุดประจำปี", saturday: "ตารางเวรเสาร์", settings: "ข้อมูลพื้นฐาน",
+  };
+
+  const renderActiveTab = () => {
+    switch (activeTab) {
+      case "dashboard":
+        return (
+          <DashboardPage
+            user={user}
+            onViewTask={setSelectedTask}
+            onViewAll={() => setActiveTab("tasks")}
+            refreshTrigger={refreshTrigger}
+          />
+        );
+      case "projects":
+        return (
+          <Suspense fallback={<PageFallback />}>
+            <ProjectsPage />
+          </Suspense>
+        );
+      case "workload":
+        return (
+          <Suspense fallback={<PageFallback />}>
+            <WorkloadPage />
+          </Suspense>
+        );
+      case "tasks":
+        return (
+          <Suspense fallback={<PageFallback />}>
+            <TasksPage
+              currentUser={user}
+              refreshTrigger={refreshTrigger}
+              onViewTask={setSelectedTask}
+              onEditTask={(t) => {
+                setEditingTask(t);
+                setTaskFormOpen(true);
+              }}
+            />
+          </Suspense>
+        );
+      case "staff":
+        return (
+          <Suspense fallback={<PageFallback />}>
+            <StaffPage
+              refreshTrigger={refreshTrigger}
+              onEdit={(u) => {
+                setEditingUser(u);
+                setUserFormOpen(true);
+              }}
+              onDelete={(uid) =>
+                setConfirmDialog({
+                  message: "ต้องการลบพนักงานนี้?",
+                  onConfirm: async () => {
+                    await userService.deleteUser(uid);
+                    triggerRefresh();
+                    setConfirmDialog(null);
+                  },
+                })
+              }
+            />
+          </Suspense>
+        );
+      case "reports":
+        return (
+          <Suspense fallback={<PageFallback />}>
+            <ReportsPage user={user} refreshTrigger={refreshTrigger} />
+          </Suspense>
+        );
+      case "notifications":
+        return (
+          <Suspense fallback={<PageFallback />}>
+            <NotificationsPage
+              notifications={notifications}
+              onMarkRead={async (id) => {
+                await notificationService.markRead(id);
+                await Promise.all([fetchNotifications(), fetchUnreadCount()]);
+              }}
+              onMarkAllRead={async () => {
+                await notificationService.markAllRead(user.id);
+                await Promise.all([fetchNotifications(), fetchUnreadCount()]);
+              }}
+              onViewTask={async (refId) => {
+                try {
+                  const t = await taskService.getTask(refId);
+                  setSelectedTask(t);
+                } catch (error) {
+                  console.error("Failed to view task from notification", error);
+                }
+              }}
+            />
+          </Suspense>
+        );
+      case "lineLink":
+        return (
+          <Suspense fallback={<PageFallback />}>
+            <LineLinkPage user={user} onUserUpdate={updateCurrentUser} />
+          </Suspense>
+        );
+      case "holidays":
+        return (
+          <Suspense fallback={<PageFallback />}>
+            <HolidaysPage user={user} />
+          </Suspense>
+        );
+      case "saturday":
+        return (
+          <Suspense fallback={<PageFallback />}>
+            <SaturdaySchedulePage user={user} users={users} />
+          </Suspense>
+        );
+      case "settings":
+        return (
+          <Suspense fallback={<PageFallback />}>
+            <SettingsPage refreshTrigger={refreshTrigger} />
+          </Suspense>
+        );
+      default:
+        return <PageFallback />;
+    }
   };
 
   return (
@@ -191,95 +317,7 @@ export default function App() {
         onCreateTask={() => { setEditingTask(null); setTaskFormOpen(true); }}
         onCreateUser={() => { setEditingUser(null); setUserFormOpen(true); }}
       >
-        <AnimatePresence mode="wait">
-          {activeTab === "dashboard" && (
-            <React.Fragment key="dashboard">
-              <DashboardPage user={user}
-                onViewTask={setSelectedTask} onViewAll={() => setActiveTab("tasks")} refreshTrigger={refreshTrigger} />
-            </React.Fragment>
-          )}
-          {activeTab === "projects" && (
-            <React.Fragment key="projects">
-              <Suspense fallback={<PageFallback />}>
-                <ProjectsPage />
-              </Suspense>
-            </React.Fragment>
-          )}
-          {activeTab === "workload" && (
-            <React.Fragment key="workload">
-              <Suspense fallback={<PageFallback />}>
-                <WorkloadPage />
-              </Suspense>
-            </React.Fragment>
-          )}
-          {activeTab === "tasks" && (
-            <React.Fragment key="tasks">
-              <Suspense fallback={<PageFallback />}>
-                <TasksPage currentUser={user} refreshTrigger={refreshTrigger}
-                  onViewTask={setSelectedTask} onEditTask={(t) => { setEditingTask(t); setTaskFormOpen(true); }} />
-              </Suspense>
-            </React.Fragment>
-          )}
-          {activeTab === "staff" && (
-            <React.Fragment key="staff">
-              <Suspense fallback={<PageFallback />}>
-                <StaffPage refreshTrigger={refreshTrigger} onEdit={(u) => { setEditingUser(u); setUserFormOpen(true); }}
-                  onDelete={(uid) => setConfirmDialog({ message: "ต้องการลบพนักงานนี้?", onConfirm: async () => { await userService.deleteUser(uid); triggerRefresh(); setConfirmDialog(null); } })} />
-              </Suspense>
-            </React.Fragment>
-          )}
-          {activeTab === "reports" && (
-            <React.Fragment key="reports">
-              <Suspense fallback={<PageFallback />}>
-                <ReportsPage user={user} refreshTrigger={refreshTrigger} />
-              </Suspense>
-            </React.Fragment>
-          )}
-          {activeTab === "notifications" && (
-            <React.Fragment key="notifications">
-              <Suspense fallback={<PageFallback />}>
-                <NotificationsPage notifications={notifications}
-                  onMarkRead={async (id) => {
-                    await notificationService.markRead(id);
-                    await Promise.all([fetchNotifications(), fetchUnreadCount()]);
-                  }}
-                  onMarkAllRead={async () => {
-                    await notificationService.markAllRead(user.id);
-                    await Promise.all([fetchNotifications(), fetchUnreadCount()]);
-                  }}
-                  onViewTask={async (refId) => {
-                    try {
-                      const t = await taskService.getTask(refId);
-                      setSelectedTask(t);
-                    } catch (error) {
-                      console.error("Failed to view task from notification", error);
-                    }
-                  }} />
-              </Suspense>
-            </React.Fragment>
-          )}
-          {activeTab === "holidays" && (
-            <React.Fragment key="holidays">
-              <Suspense fallback={<PageFallback />}>
-                <HolidaysPage user={user} />
-              </Suspense>
-            </React.Fragment>
-          )}
-          {activeTab === "saturday" && (
-            <React.Fragment key="saturday">
-              <Suspense fallback={<PageFallback />}>
-                <SaturdaySchedulePage user={user} users={users} />
-              </Suspense>
-            </React.Fragment>
-          )}
-          {activeTab === "settings" && (
-            <React.Fragment key="settings">
-              <Suspense fallback={<PageFallback />}>
-                <SettingsPage refreshTrigger={refreshTrigger} />
-              </Suspense>
-            </React.Fragment>
-          )}
-        </AnimatePresence>
+        {renderActiveTab()}
       </MainLayout>
 
       {taskFormOpen && (
@@ -317,7 +355,8 @@ export default function App() {
       {profileOpen && (
         <Suspense fallback={null}>
           <ProfileModal user={user} onClose={() => setProfileOpen(false)}
-            onSave={(updated) => { setUser(updated); localStorage.setItem("user", JSON.stringify(updated)); setProfileOpen(false); triggerRefresh(); }} />
+            onSave={(updated) => { updateCurrentUser(updated); setProfileOpen(false); triggerRefresh(); }}
+            onOpenLineLink={() => { setProfileOpen(false); setActiveTab("lineLink"); }} />
         </Suspense>
       )}
       {confirmDialog && (

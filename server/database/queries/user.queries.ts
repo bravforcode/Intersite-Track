@@ -105,6 +105,14 @@ export async function findUserByUsername(username: string): Promise<User | null>
   return user ?? null;
 }
 
+export async function findUserByLineUserId(lineUserId: string): Promise<User | null> {
+  const snap = await db.collection("users").where("line_user_id", "==", lineUserId).limit(1).get();
+  if (snap.empty) return null;
+  const doc = snap.docs[0];
+  const [user] = await enrichWithDepartmentName([mapUser(doc.id, doc.data())]);
+  return user ?? null;
+}
+
 export async function createUser(dto: CreateUserDTO): Promise<string> {
   const uid = dto.auth_id;
   await db.collection("users").doc(uid).set({

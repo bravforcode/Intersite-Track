@@ -28,14 +28,34 @@ async function ensureNotificationAccess(
 
 export async function getNotifications(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const notifications = await getNotificationsByUser(req.params.userId);
+    // Verify user has access to the requested userId
+    const requestedUserId = req.params.userId;
+    const isAdmin = req.user!.role === "admin";
+    const isOwnData = req.user!.id === requestedUserId;
+
+    if (!isAdmin && !isOwnData) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const notifications = await getNotificationsByUser(requestedUserId);
     res.json(notifications);
   } catch (err) { next(err); }
 }
 
 export async function getUnreadNotificationCount(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const count = await getUnreadCount(req.params.userId);
+    // Verify user has access to the requested userId
+    const requestedUserId = req.params.userId;
+    const isAdmin = req.user!.role === "admin";
+    const isOwnData = req.user!.id === requestedUserId;
+
+    if (!isAdmin && !isOwnData) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    const count = await getUnreadCount(requestedUserId);
     res.json({ count });
   } catch (err) { next(err); }
 }
@@ -56,7 +76,17 @@ export async function markRead(req: Request, res: Response, next: NextFunction):
 
 export async function markAllRead(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    await markAllNotificationsRead(req.params.userId);
+    // Verify user has access to the requested userId
+    const requestedUserId = req.params.userId;
+    const isAdmin = req.user!.role === "admin";
+    const isOwnData = req.user!.id === requestedUserId;
+
+    if (!isAdmin && !isOwnData) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    await markAllNotificationsRead(requestedUserId);
     res.json({ success: true });
   } catch (err) { next(err); }
 }

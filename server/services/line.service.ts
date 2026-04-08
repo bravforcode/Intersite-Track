@@ -2,13 +2,26 @@ import axios from "axios";
 import axiosRetry from "axios-retry";
 import { logger } from "../utils/logger.js";
 import { getLineGroupId } from "../database/queries/appSettings.queries.js";
+import { buildDailyStatusMessage } from "../utils/dayStatus.js";
+import type { DailyStatusReference, OperationalDayStatus } from "../utils/dayStatus.js";
 
 // @ts-ignore
 axiosRetry(axios, { retries: 3, retryDelay: axiosRetry.exponentialDelay });
 
 const LINE_MESSAGING_API = "https://api.line.me/v2/bot/message/push";
+const LINE_REPLY_API = "https://api.line.me/v2/bot/message/reply";
 const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const LINE_ADMIN_USER_ID = process.env.LINE_ADMIN_USER_ID;
+
+function formatLineErrorPayload(payload: unknown): string {
+  if (typeof payload === "string") return payload;
+  if (payload == null) return "";
+  try {
+    return JSON.stringify(payload);
+  } catch {
+    return String(payload);
+  }
+}
 
 async function pushMessage(to: string, message: string): Promise<boolean> {
   if (!LINE_TOKEN || !to) return false;
@@ -21,7 +34,23 @@ async function pushMessage(to: string, message: string): Promise<boolean> {
     logger.info(`LINE message sent to ${to}`);
     return true;
   } catch (error: any) {
-    logger.error(`Failed to send LINE message to ${to}: ${error.response?.data || error.message}`);
+    logger.error(`Failed to send LINE message to ${to}: ${formatLineErrorPayload(error.response?.data) || error.message}`);
+    return false;
+  }
+}
+
+async function replyMessage(replyToken: string, message: string): Promise<boolean> {
+  if (!LINE_TOKEN || !replyToken) return false;
+  try {
+    await axios.post(
+      LINE_REPLY_API,
+      { replyToken, messages: [{ type: "text", text: message }] },
+      { headers: { "Content-Type": "application/json", Authorization: `Bearer ${LINE_TOKEN}` } }
+    );
+    logger.info("LINE reply sent");
+    return true;
+  } catch (error: any) {
+    logger.error(`Failed to reply LINE message: ${formatLineErrorPayload(error.response?.data) || error.message}`);
     return false;
   }
 }
@@ -29,6 +58,10 @@ async function pushMessage(to: string, message: string): Promise<boolean> {
 export const lineService = {
   async sendMessage(to: string, message: string): Promise<boolean> {
     return pushMessage(to, message);
+  },
+
+  async replyText(replyToken: string, message: string): Promise<boolean> {
+    return replyMessage(replyToken, message);
   },
 
   async sendToUserAndGroup(userId: string, message: string): Promise<void> {
@@ -39,19 +72,9 @@ export const lineService = {
   },
 
   async sendToGroup(message: string): Promise<boolean> {
-    if (!LINE_TOKEN) return false;
-    try {
-      await axios.post(
-        "https://api.line.me/v2/bot/message/broadcast",
-        { messages: [{ type: "text", text: message }] },
-        { headers: { "Content-Type": "application/json", Authorization: `Bearer ${LINE_TOKEN}` } }
-      );
-      logger.info("LINE broadcast sent");
-      return true;
-    } catch (error: any) {
-      logger.error(`Failed to broadcast LINE message: ${error.response?.data || error.message}`);
-      return false;
-    }
+    const groupId = await getLineGroupId();
+    if (!groupId) return false;
+    return pushMessage(groupId, message);
   },
 
   async notifyAdmin(message: string): Promise<boolean> {
@@ -73,6 +96,10 @@ export const lineService = {
   async notifyUpcomingDeadline(to: string, taskTitle: string, dueDate: string, daysLeft: number): Promise<boolean> {
     const msg = `⏰ แจ้งเตือนกำหนดส่งงาน!\n\nงาน: ${taskTitle}\nกำหนดส่ง: ${dueDate}\n(เหลือเวลาอีก ${daysLeft} วัน)\n\nกรุณาเร่งดำเนินการให้เสร็จสิ้นตามกำหนด`;
     return pushMessage(to, msg);
+  },
+
+  async notifyDailyStatus(to: string, reference: DailyStatusReference, status: OperationalDayStatus): Promise<boolean> {
+    return pushMessage(to, buildDailyStatusMessage(reference, status));
   },
 
   async notifyHolidayPersonal(to: string, holidayName: string, date: string, type: "tomorrow" | "today" | "weekly_summary", holidayList?: string[]): Promise<boolean> {

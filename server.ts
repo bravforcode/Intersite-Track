@@ -31,7 +31,12 @@ app.use(cors({
 }));
 
 // Body size limit (prevent large payload attacks)
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({
+  limit: "1mb",
+  verify: (req, _res, buf) => {
+    (req as express.Request).rawBody = Buffer.from(buf);
+  },
+}));
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // API routes (must come before SPA routes)

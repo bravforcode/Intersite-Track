@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X } from "lucide-react";
+import { Link2, X } from "lucide-react";
 import { motion } from "motion/react";
 import { authService } from "../../services/authService";
 import { userService } from "../../services/userService";
@@ -9,18 +9,22 @@ interface ProfileModalProps {
   user: User;
   onClose: () => void;
   onSave: (updated: User) => void;
+  onOpenLineLink: () => void;
 }
 
-export function ProfileModal({ user, onClose, onSave }: ProfileModalProps) {
+function maskLineId(value: string | null | undefined): string {
+  if (!value) return "ยังไม่ได้เชื่อม LINE";
+  if (value.length <= 10) return value;
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
+}
+
+export function ProfileModal({ user, onClose, onSave, onOpenLineLink }: ProfileModalProps) {
   const [tab, setTab] = useState<"profile" | "password">("profile");
   const [form, setForm] = useState({
     username: user.username ?? "",
     first_name: user.first_name ?? "",
     last_name: user.last_name ?? "",
-    role: user.role,
-    department_id: user.department_id ?? (undefined as number | undefined),
     position: user.position ?? "",
-    line_user_id: user.line_user_id ?? "",
   });
   const [pwForm, setPwForm] = useState({ old_password: "", new_password: "", confirm_password: "" });
   const [error, setError] = useState("");
@@ -30,18 +34,21 @@ export function ProfileModal({ user, onClose, onSave }: ProfileModalProps) {
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setError("");
+    setSuccess("");
     try {
       const updated = await userService.updateMyProfile({
         username: form.username,
         first_name: form.first_name,
         last_name: form.last_name,
         position: form.position.trim() || null,
-        line_user_id: form.line_user_id.trim() || null,
-      } as any);
+        line_user_id: user.line_user_id ?? null,
+      });
       onSave(updated);
       setSuccess("บันทึกโปรไฟล์สำเร็จ");
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "ไม่สามารถบันทึกโปรไฟล์ได้";
+      setError(message);
     } finally {
       setSaving(false);
     }
@@ -54,17 +61,24 @@ export function ProfileModal({ user, onClose, onSave }: ProfileModalProps) {
       return;
     }
     setSaving(true);
+    setError("");
+    setSuccess("");
     try {
       await authService.changePassword(user.id, pwForm.old_password, pwForm.new_password);
       setSuccess("เปลี่ยนรหัสผ่านสำเร็จ");
       setPwForm({ old_password: "", new_password: "", confirm_password: "" });
-      setError("");
-    } catch (e: any) {
-      setError(e.message);
-      setSuccess("");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "ไม่สามารถเปลี่ยนรหัสผ่านได้";
+      setError(message);
     } finally {
       setSaving(false);
     }
+  };
+
+  const switchTab = (nextTab: "profile" | "password") => {
+    setTab(nextTab);
+    setError("");
+    setSuccess("");
   };
 
   return (
@@ -83,13 +97,13 @@ export function ProfileModal({ user, onClose, onSave }: ProfileModalProps) {
 
         <div className="flex border-b border-sky-100 bg-white">
           <button
-            onClick={() => { setTab("profile"); setError(""); setSuccess(""); }}
+            onClick={() => switchTab("profile")}
             className={`flex-1 py-3 text-sm font-medium transition-colors ${tab === "profile" ? "text-blue-700 border-b-2 border-blue-600 bg-blue-50/60" : "text-slate-400 hover:text-slate-600"}`}
           >
             ข้อมูลส่วนตัว
           </button>
           <button
-            onClick={() => { setTab("password"); setError(""); setSuccess(""); }}
+            onClick={() => switchTab("password")}
             className={`flex-1 py-3 text-sm font-medium transition-colors ${tab === "password" ? "text-blue-700 border-b-2 border-blue-600 bg-blue-50/60" : "text-slate-400 hover:text-slate-600"}`}
           >
             เปลี่ยนรหัสผ่าน
@@ -122,6 +136,15 @@ export function ProfileModal({ user, onClose, onSave }: ProfileModalProps) {
               </div>
             </div>
             <div>
+              <label className="block text-xs font-bold uppercase text-gray-400 mb-1">ชื่อผู้ใช้</label>
+              <input
+                type="text"
+                className="w-full px-4 py-2.5 rounded-xl border border-sky-100 bg-sky-50/70 focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 outline-none transition-colors"
+                value={form.username}
+                onChange={(e) => setForm({ ...form, username: e.target.value })}
+              />
+            </div>
+            <div>
               <label className="block text-xs font-bold uppercase text-gray-400 mb-1">ตำแหน่ง</label>
               <input
                 type="text"
@@ -130,18 +153,21 @@ export function ProfileModal({ user, onClose, onSave }: ProfileModalProps) {
                 onChange={(e) => setForm({ ...form, position: e.target.value })}
               />
             </div>
-            <div>
-              <label className="block text-xs font-bold uppercase text-gray-400 mb-1">LINE User ID</label>
-              <input
-                type="text"
-                className="w-full px-4 py-2.5 rounded-xl border border-sky-100 bg-sky-50/70 focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500 outline-none transition-colors"
-                placeholder="เช่น U1234567890..."
-                value={form.line_user_id}
-                onChange={(e) => setForm({ ...form, line_user_id: e.target.value })}
-              />
-              <p className="text-[10px] text-slate-400 mt-1">
-                ใช้สำหรับรับการแจ้งเตือนผ่าน LINE Messaging API
-              </p>
+            <div className="rounded-2xl border border-sky-100 bg-sky-50/70 px-4 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-sky-700/70 mb-1">LINE ที่เชื่อมอยู่</p>
+                  <p className="text-sm text-slate-700">{maskLineId(user.line_user_id)}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={onOpenLineLink}
+                  className="inline-flex items-center gap-2 rounded-xl border border-sky-100 bg-white px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-50 transition-colors"
+                >
+                  <Link2 size={16} />
+                  จัดการ LINE
+                </button>
+              </div>
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <button type="button" onClick={onClose} className="px-6 py-2 rounded-xl text-sm font-bold text-slate-500 hover:bg-sky-50 transition-colors">

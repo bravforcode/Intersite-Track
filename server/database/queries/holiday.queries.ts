@@ -34,6 +34,13 @@ export async function findHolidayById(id: string): Promise<Holiday | null> {
   return { id: doc.id, ...doc.data() } as Holiday;
 }
 
+export async function findHolidayByDate(date: string): Promise<Holiday | null> {
+  const snap = await db.collection("holidays").where("date", "==", date).limit(1).get();
+  if (snap.empty) return null;
+  const doc = snap.docs[0];
+  return { id: doc.id, ...doc.data() } as Holiday;
+}
+
 export async function createHoliday(data: CreateHolidayDTO): Promise<string> {
   const ref = await db.collection("holidays").add({
     ...data,

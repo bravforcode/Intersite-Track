@@ -60,8 +60,8 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
     if (search && !`${u.first_name} ${u.last_name} ${u.username} ${u.position}`.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
-  const totalStaff = users.filter((u) => u.role !== "admin").length;
-  const filteredStaff = staffUsers.filter((u) => u.role !== "admin").length;
+  const totalUsers = users.length;
+  const filteredUsers = staffUsers.length;
   const adminCount = users.filter((u) => u.role === "admin").length;
   const departmentCount = new Set(users.map((u) => u.department_name).filter(Boolean)).size;
 
@@ -156,12 +156,12 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
     <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="space-y-6">
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <div className="app-surface-subtle rounded-2xl px-5 py-4">
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] app-soft mb-2">พนักงานทั้งหมด</p>
-          <p className="text-2xl font-serif font-bold text-[#5A5A40]">{totalStaff}</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] app-soft mb-2">ผู้ใช้ทั้งหมด</p>
+          <p className="text-2xl font-serif font-bold text-[#5A5A40]">{totalUsers}</p>
         </div>
         <div className="app-surface-subtle rounded-2xl px-5 py-4">
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] app-soft mb-2">แสดงผลตอนนี้</p>
-          <p className="text-2xl font-serif font-bold text-amber-600">{filteredStaff}</p>
+          <p className="text-2xl font-serif font-bold text-amber-600">{filteredUsers}</p>
         </div>
         <div className="app-surface-subtle rounded-2xl px-5 py-4">
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] app-soft mb-2">แอดมิน</p>

@@ -12,6 +12,7 @@ function toSafeProfile(id: string, data: FirebaseFirestore.DocumentData) {
     department_id: data.department_id ?? null,
     department_name: null,
     position: data.position ?? "",
+    line_user_id: data.line_user_id ?? null,
     created_at: data.created_at ?? undefined,
   };
 }
@@ -134,6 +135,12 @@ export async function updateMyProfile(req: Request, res: Response, next: NextFun
     const first_name = String(req.body?.first_name ?? "").trim();
     const last_name = String(req.body?.last_name ?? "").trim();
     const position = typeof req.body?.position === "string" ? req.body.position.trim() : null;
+    const line_user_id =
+      req.body?.line_user_id === null
+        ? null
+        : typeof req.body?.line_user_id === "string"
+          ? req.body.line_user_id.trim() || null
+          : undefined;
 
     if (!username || !first_name || !last_name) {
       res.status(400).json({ error: "กรุณากรอกชื่อผู้ใช้ ชื่อ และนามสกุลให้ครบ" });
@@ -146,7 +153,10 @@ export async function updateMyProfile(req: Request, res: Response, next: NextFun
       return;
     }
 
-    await db.collection("users").doc(req.user!.id).update({ username, first_name, last_name, position });
+    const payload: Record<string, string | null> = { username, first_name, last_name, position };
+    if (line_user_id !== undefined) payload.line_user_id = line_user_id;
+
+    await db.collection("users").doc(req.user!.id).update(payload);
 
     const updated = await db.collection("users").doc(req.user!.id).get();
     res.json(toSafeProfile(updated.id, updated.data()!));
