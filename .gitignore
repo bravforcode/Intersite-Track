@@ -1,15 +1,49 @@
+﻿# Dependencies
 node_modules/
+
+# Build outputs
 build/
 dist/
 coverage/
-uploads/
-.DS_Store
-*.log
-.coverage
-.env*
+
+# Environment variables (NEVER commit these)
+.env
+.env.*
 !.env.example
 
+# Vercel
 .vercel
-tmp/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Database files (using Firestore, not SQLite)
+*.db
+*.db-shm
+*.db-wal
+
+# Uploads (user-generated content, not source code)
+uploads/
+
+# Python
 **/__pycache__/
+.venv/
+
+# Temp files
+tmp/
+*.tmp
+
+# Word temp lock files
+~$*.docx
+~$*.xlsx
+
+# Playwright
+.playwright-cli/
+
+# Backup docs generated during dev
 *.backup-before-*.docx

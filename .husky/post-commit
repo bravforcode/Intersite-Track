@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+
+(
+  echo "🔄 [post-commit] Syncing TaskAm → Gracia Vault..."
+  npx tsx scripts/obsidian-sync.ts --full >/dev/null 2>&1
+  npx tsx scripts/obsidian-sync.ts --check-adr >/dev/null 2>&1
+  echo "✅ Vault sync complete."
+) &

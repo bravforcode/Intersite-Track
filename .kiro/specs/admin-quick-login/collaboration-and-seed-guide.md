@@ -1,4 +1,4 @@
-# คู่มือ Quick Login และการเพิ่มผู้ร่วมดูแล Supabase
+# คู่มือ Quick Login และการเพิ่มผู้ร่วมดูแล Firebase
 
 เอกสารนี้ใช้สำหรับตั้งค่า Quick Login ใน `development` และ `staging` เท่านั้น
 
@@ -24,22 +24,17 @@ VITE_ENABLE_QUICK_LOGIN=true
 หมายเหตุ:
 - แม้จะตั้ง `VITE_ENABLE_QUICK_LOGIN=true` แต่ถ้า environment เป็น `production` ระบบจะไม่แสดงปุ่ม Quick Login
 
-## 2. การ seed บัญชีทดสอบ
-
-ไฟล์ seed:
-
-`supabase/seeds/quick-login-test-accounts.sql`
+## 2. การเตรียมบัญชีทดสอบ
 
 บัญชีที่ถูกสร้าง:
 - Admin: `admin@taskam.local` / `admin123`
 - Staff: `somchai@taskam.local` / `staff123`
 
-สิ่งที่สคริปต์ทำ:
-- สร้างหรืออัปเดตผู้ใช้ใน `auth.users`
-- สร้างหรืออัปเดต identity ใน `auth.identities`
-- ตั้งค่า `email_confirmed_at` และ `confirmed_at` เพื่อข้ามขั้นตอนยืนยันอีเมลสำหรับบัญชีทดสอบ
-- สร้างหรืออัปเดตโปรไฟล์ใน `public.users`
-- รันซ้ำได้โดยไม่สร้างข้อมูลซ้ำ
+แนวทางปัจจุบัน:
+- สร้างบัญชีผ่านหน้า Sign Up ของระบบ หรือผ่าน Firebase Console > Authentication
+- สร้างหรือแก้ไขโปรไฟล์ใน Firestore collection `users`
+- กำหนด `role` เป็น `admin` หรือ `staff` ให้ตรงกับ Quick Login card ที่หน้าเว็บใช้
+- ใช้อีเมลโดเมน `.local` เพื่อแยกจากบัญชีใช้งานจริง
 
 ข้อมูลโปรไฟล์ที่ถูกบันทึก:
 - Admin:
@@ -49,29 +44,26 @@ VITE_ENABLE_QUICK_LOGIN=true
   `username = "Somchai Test"`
   `role = "staff"`
 
-### วิธีรันผ่าน Supabase Dashboard
+### วิธีเตรียมข้อมูลผ่าน Firebase Console
 
-1. เปิด Supabase Dashboard ของโปรเจกต์ `Intersite Track`
-2. ไปที่ `SQL Editor`
-3. เปิดไฟล์ `supabase/seeds/quick-login-test-accounts.sql`
-4. คัดลอก SQL ทั้งไฟล์แล้วรัน
-5. ตรวจสอบผลใน:
-   `Authentication -> Users`
-   และ `Table Editor -> public.users`
-
-### วิธีรันผ่าน psql
-
-```bash
-psql "$DATABASE_URL" -f supabase/seeds/quick-login-test-accounts.sql
-```
+1. เปิด Firebase Console ของโปรเจกต์ `internsite-f9cd7`
+2. ไปที่ `Authentication` แล้วสร้างผู้ใช้ `admin@taskam.local` และ `somchai@taskam.local`
+3. ไปที่ `Firestore Database` แล้วสร้างหรือแก้ไข document ใน collection `users` โดยใช้ `uid` ของผู้ใช้แต่ละคนเป็น document id
+4. ใส่ข้อมูลอย่างน้อย:
+   - `email`
+   - `username`
+   - `role`
+   - `first_name`
+   - `last_name`
+5. ตรวจสอบว่าหน้า Login สามารถใช้ Quick Login ได้ทั้ง 2 บทบาท
 
 ### เช็กลิสต์หลังรัน
 
 1. เห็นผู้ใช้ `admin@taskam.local` และ `somchai@taskam.local` ใน `Authentication -> Users`
-2. เห็นแถวคู่กันใน `public.users`
+2. เห็น document คู่กันใน Firestore collection `users`
 3. ล็อกอินผ่านหน้าเว็บด้วยปุ่ม Quick Login ได้ทั้ง 2 บทบาท
 
-## 3. การเพิ่มผู้ร่วมดูแล Supabase
+## 3. การเพิ่มผู้ร่วมดูแล Firebase
 
 แนวทางใน dashboard อาจต่างกันเล็กน้อยตาม plan และ UI รุ่นที่ใช้อยู่
 
@@ -83,29 +75,25 @@ path ที่ให้ใช้ก่อน:
 
 ### ขั้นตอน
 
-1. เปิดโปรเจกต์ใน Supabase Dashboard
-2. ไปที่ `Project Settings -> Team -> Invite Member`
+1. เปิดโปรเจกต์ใน Firebase หรือ Google Cloud Console
+2. ไปที่หน้าจัดการ IAM หรือ Team access ที่ใช้งานอยู่
 3. กรอกอีเมลของผู้ร่วมงาน
 4. เลือก role เป็น `Administrator`
 5. ส่งคำเชิญ
 6. ให้ผู้รับเปิดอีเมลและกดรับคำเชิญก่อนจึงจะเข้าใช้งานได้
 
-### สิทธิ์ของ role `Administrator`
+### สิทธิ์ที่ควรให้ทีมร่วมดูแล
 
-`Administrator` เหมาะกับการให้ทีมช่วยดูแลโปรเจกต์ร่วมกัน เพราะมีสิทธิ์สูงใน project และ organization resources ส่วนใหญ่ เช่น:
-- เข้าถึงฐานข้อมูลและเครื่องมืออย่าง SQL Editor / Table Editor
-- จัดการ Authentication และดูรายชื่อผู้ใช้
-- ดูค่าการเชื่อมต่อและ API keys ของโปรเจกต์
-- ดูและจัดการการตั้งค่าบิลลิงได้ในขอบเขตที่ระบบอนุญาต
-- จัดการสมาชิกระดับ Administrator / Developer ได้
+แนะนำให้ให้สิทธิ์เฉพาะเท่าที่จำเป็นสำหรับ:
+- Authentication
+- Firestore Database
+- Project configuration
+- Deployment และ environment management
 
-ข้อจำกัดสำคัญ:
-- ไม่สามารถแก้ organization settings บางส่วน
-- ไม่สามารถโอนโปรเจกต์ออกจาก organization
-- ไม่สามารถเพิ่ม owner ใหม่แทน role `Owner`
+หลีกเลี่ยงการให้ owner-level access ถ้าไม่จำเป็น
 
 ## 4. ข้อเสนอแนะสำหรับทีม
 
 - ใช้ Quick Login เฉพาะเครื่องพัฒนาและ environment ทดสอบ
 - ถ้าต้องการปิดชั่วคราวใน staging ให้ตั้ง `VITE_ENABLE_QUICK_LOGIN=false`
-- ถ้าทีมต้องแชร์สิทธิ์ดูฐานข้อมูลและ auth ร่วมกัน ให้ใช้ role `Administrator` แทนการแชร์ account เดียว
+- ถ้าทีมต้องแชร์สิทธิ์ดูฐานข้อมูลและ auth ร่วมกัน ให้ใช้ IAM role ที่จำกัดขอบเขตงานแทนการแชร์ account เดียว

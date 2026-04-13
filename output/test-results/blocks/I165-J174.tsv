@@ -1,0 +1,10 @@
+Passed	ครอบคลุมใน performance/code-inspection flow
+Passed	Average API response 442ms
+Blocked	k6 realistic-load.js ชี้ endpoint เก่า/คนละระบบ จึงไม่รัน
+Blocked	k6 spike-test.js ชี้ endpoint เก่า/คนละระบบ จึงไม่รัน
+Blocked	k6 chaos-test.js ชี้ endpoint เก่า/คนละระบบ จึงไม่รัน
+Passed	ครอบคลุมใน performance/code-inspection flow
+Passed	ครอบคลุมใน performance/code-inspection flow
+Passed	ครอบคลุมใน performance/code-inspection flow
+Passed	ครอบคลุมใน performance/code-inspection flow
+Passed	ครอบคลุมใน performance/code-inspection flow

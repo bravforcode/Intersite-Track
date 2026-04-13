@@ -1,0 +1,25 @@
+Passed	Admin create task แล้ว assignee unread เพิ่ม
+Passed	Staff create task ได้ 403
+Passed	Create task ไม่มี title ได้ 400
+Passed	Checklist parent/child บันทึกได้
+Passed	Task update + activity log ผ่าน
+Passed	Delete task แล้ว doc หาย
+Passed	Admin status update สำเร็จ
+Passed	Staff assignee status update สำเร็จ
+Passed	Staff non-assignee status ได้ 403
+Passed	Toggle checklist child สำเร็จ
+Passed	Toggle parent ถูก block
+Passed	Task update พร้อม attachment_url สำเร็จ
+Passed	Add comment สำเร็จ
+Passed	Filter status สำเร็จ
+Passed	Filter priority สำเร็จ
+Passed	Filter assignee สำเร็จ
+Passed	Filter date range สำเร็จ
+Passed	Search title/description สำเร็จ
+Passed	Upload image ได้ URL
+Passed	Upload 26MB ถูก reject
+Passed	Upload non-image ถูก reject
+Passed	ครอบคลุมใน task API flow/checklist/upload/filter/activity
+Passed	ครอบคลุมใน task API flow/checklist/upload/filter/activity
+Passed	Activity log endpoint สำเร็จ
+Passed	Workspace return tasks/users/taskTypes

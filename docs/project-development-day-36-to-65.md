@@ -173,7 +173,7 @@
 **สถานะ:** ดำเนินการแล้ว  
 - งาน: เพิ่ม project module แบบ end-to-end ทั้ง schema, backend, frontend และ services
 - ผลลัพธ์: ระบบขยายจาก task tracking ไปสู่ project operations ได้จริง
-- หลักฐาน: commit `b807ceb`, `supabase/migrations/20260401000000_project_module.sql`
+- หลักฐาน: commit `b807ceb`, legacy schema migration สำหรับ project module ก่อนย้าย Firebase-only
 
 ### Card Day 59 | PDF Report
 **วันที่:** 2 เมษายน 2026  
@@ -187,7 +187,7 @@
 **สถานะ:** ดำเนินการแล้ว  
 - งาน: เชื่อม LINE เข้ากับ workflow หลักของระบบ และเพิ่มฟิลด์ `line_user_id`
 - ผลลัพธ์: ระบบเริ่มส่งการแจ้งเตือนรายบุคคลได้จริง และวางฐานสำหรับ cron alerts
-- หลักฐาน: commit `b807ceb`, `supabase/migrations/20260401120000_add_line_user_id.sql`
+- หลักฐาน: commit `b807ceb`, legacy schema migration สำหรับ `line_user_id` ก่อนย้าย Firebase-only
 
 ### Card Day 61 | Dashboard & PWA
 **วันที่:** 6 เมษายน 2026  
@@ -229,4 +229,3 @@
 ## บทสรุป
 
 ช่วง `Day 36 - Day 65` เป็นช่วงที่โปรเจกต์ถูกพัฒนาจากขั้นวางระบบและออกแบบสถาปัตยกรรม ไปสู่การยกเครื่องระบบจริงทั้งด้าน auth, task engine, integrations, reporting, project module และ operational features จนกลายเป็น Intersite Track ที่มีโครงสร้างชัดเจน ใช้งานได้จริง และพร้อมต่อยอดในระดับองค์กร
-

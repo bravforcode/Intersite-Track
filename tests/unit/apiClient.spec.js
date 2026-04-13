@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { createApiClient } from "../../src/services/apiClient.ts";
+import { createApiClient } from "../../frontend/src/services/apiClient.ts";
 
 function createStorage(initialState = {}) {
   const state = new Map(Object.entries(initialState));
@@ -19,7 +19,7 @@ function createStorage(initialState = {}) {
   };
 }
 
-function createSupabase({ accessToken = null } = {}) {
+function createAuthClient({ accessToken = null } = {}) {
   let getSessionCalls = 0;
   let signOutCalls = 0;
 
@@ -53,11 +53,9 @@ function jsonResponse(body, init = {}) {
 }
 
 test("deduplicates concurrent GET requests and serves cached clones", async () => {
-  const storage = createStorage({
-    user: JSON.stringify({ token: "stored-token" }),
-  });
+  const storage = createStorage();
   const location = { href: "/dashboard" };
-  const { client: supabase, getSessionCalls } = createSupabase();
+  const { client: authClient, getSessionCalls } = createAuthClient({ accessToken: "session-token" });
   const payload = [{ id: 1, nested: { label: "original" } }];
   const calls = [];
 
@@ -73,15 +71,15 @@ test("deduplicates concurrent GET requests and serves cached clones", async () =
     });
   };
 
-  const { api } = createApiClient({ supabase, fetchFn, storage, location });
+  const { api } = createApiClient({ authClient, fetchFn, storage, location });
   const firstRequest = api.get("/api/tasks");
   const secondRequest = api.get("/api/tasks");
 
-  await Promise.resolve();
+  await new Promise((resolve) => setTimeout(resolve, 0));
 
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].authorization, "Bearer stored-token");
-  assert.equal(getSessionCalls(), 0);
+  assert.equal(calls[0].authorization, "Bearer session-token");
+  assert.equal(getSessionCalls(), 1);
   assert.equal(typeof releaseResponse, "function");
 
   releaseResponse();
@@ -100,7 +98,7 @@ test("deduplicates concurrent GET requests and serves cached clones", async () =
 test("clears cached GET data after a mutating request", async () => {
   const storage = createStorage();
   const location = { href: "/dashboard" };
-  const { client: supabase } = createSupabase({ accessToken: "session-token" });
+  const { client: authClient } = createAuthClient({ accessToken: "session-token" });
   const calls = [];
 
   const fetchFn = async (input, init = {}) => {
@@ -119,7 +117,7 @@ test("clears cached GET data after a mutating request", async () => {
     return jsonResponse({ total: 2 });
   };
 
-  const { api } = createApiClient({ supabase, fetchFn, storage, location });
+  const { api } = createApiClient({ authClient, fetchFn, storage, location });
 
   const first = await api.get("/api/stats");
   assert.equal(first.total, 1);
@@ -136,12 +134,12 @@ test("signs out locally, clears storage, and redirects on 401", async () => {
     user: JSON.stringify({ token: "stored-token" }),
   });
   const location = { href: "/dashboard" };
-  const { client: supabase, signOutCalls } = createSupabase();
+  const { client: authClient, signOutCalls } = createAuthClient();
   const fetchFn = async () =>
     jsonResponse({ error: "unauthorized" }, { status: 401 });
 
   const { api, setCachedAccessToken } = createApiClient({
-    supabase,
+    authClient,
     fetchFn,
     storage,
     location,
@@ -162,7 +160,7 @@ test("signs out locally, clears storage, and redirects on 401", async () => {
 test("translates aborted requests into the timeout message", async () => {
   const storage = createStorage();
   const location = { href: "/dashboard" };
-  const { client: supabase } = createSupabase();
+  const { client: authClient } = createAuthClient();
 
   const fetchFn = (_input, init = {}) =>
     new Promise((_resolve, reject) => {
@@ -181,7 +179,7 @@ test("translates aborted requests into the timeout message", async () => {
     });
 
   const { api } = createApiClient({
-    supabase,
+    authClient,
     fetchFn,
     storage,
     location,

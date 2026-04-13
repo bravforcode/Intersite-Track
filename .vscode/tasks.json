@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Brain: Preflight",
+      "type": "shell",
+      "command": "brain preflight --project-root \"${workspaceFolder}\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "Brain: Context",
+      "type": "shell",
+      "command": "brain context --project-root \"${workspaceFolder}\" --task \"${input:task}\"",
+      "problemMatcher": []
+    },
+    {
+      "label": "Brain: Run Intent",
+      "type": "shell",
+      "command": "brain run --project-root \"${workspaceFolder}\" --intent \"${input:intent}\"",
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "task",
+      "type": "promptString",
+      "description": "Task prompt"
+    },
+    {
+      "id": "intent",
+      "type": "promptString",
+      "description": "Intent to run"
+    }
+  ]
+}

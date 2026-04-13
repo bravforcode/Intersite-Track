@@ -1,0 +1,17 @@
+Passed	Trello config endpoint อ่านได้/masked
+Blocked	Trello test connection ไม่พร้อมใน env นี้: ยังไม่ได้ตั้งค่า Trello
+Blocked	ไม่ overwrite Trello config จริงด้วย credential ปลอมเพื่อทดสอบ failure
+Passed	ครอบคลุมใน Trello API/code-inspection flow
+Failed	ไม่พบการเรียก trelloSyncService.syncTaskCreation จาก task.controller; auto create card ยังไม่ wired
+Failed	ไม่พบการเรียก trelloSyncService.syncTaskUpdate จาก task.controller; auto move card ยังไม่ wired
+Failed	ไม่พบการเรียก trelloSyncService.syncTaskDeletion จาก task.controller; auto archive card ยังไม่ wired
+Passed	ครอบคลุมใน Trello API/code-inspection flow
+Passed	ครอบคลุมใน Trello API/code-inspection flow
+Passed	ครอบคลุมใน Trello API/code-inspection flow
+Passed	Sync logs endpoint สำเร็จ
+Failed	sync logs filter fail
+Blocked	ไม่รัน /trello/retry ซ้ำหลังพบว่า trigger นี้ทำให้ dev server รีสตาร์ทระหว่างเทส
+Passed	User mapping save สำเร็จ
+Passed	Status mapping read สำเร็จ
+Blocked	ไม่รัน seed weekly progress เพราะจะสร้าง list/card จริงบน Trello board
+Failed	TrelloSyncStatus component มีอยู่แต่ไม่ได้ถูก import/use ใน task card

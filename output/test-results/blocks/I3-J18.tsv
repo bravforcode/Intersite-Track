@@ -1,0 +1,16 @@
+Passed	Login admin + profile สำเร็จ
+Passed	Firebase ปฏิเสธ password ผิด
+Passed	Firebase ปฏิเสธ email ที่ไม่มี
+Passed	Firebase validate email format ผิด
+Passed	ตรวจ loginRateLimiter 5 ครั้ง/15 นาที; ไม่ยิง brute force เพื่อไม่ throttle dev session
+Passed	ครอบคลุมใน auth API/Firebase/browser smoke flow
+Passed	ตรวจ features.ts/LoginPage: production หรือ VITE_ENABLE_QUICK_LOGIN=false จะซ่อน quick-login
+Passed	Signup user login/profile ได้
+Passed	Signup email ซ้ำได้ 400
+Passed	ตรวจ auth.controller: Firestore fail แล้ว rollback ด้วย adminAuth.deleteUser(authUid)
+Passed	ตรวจ requireAuth verifyIdToken(checkRevoked=true) และ frontend interceptor auto-logout เมื่อ 401
+Partial	Firebase accepted password reset request; ไม่ตรวจ inbox
+Passed	Self password change และ login ใหม่ได้
+Passed	Admin reset password user อื่นได้
+Passed	Staff reset password user อื่นได้ 403
+Passed	ครอบคลุมใน auth API/Firebase/browser smoke flow

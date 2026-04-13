@@ -51,9 +51,9 @@ This feature adds a Quick Login UI component to the TaskAm application's login p
 
 #### Acceptance Criteria
 
-1. WHEN a Quick Login button is clicked, THE Auth_Service SHALL call `supabase.auth.signInWithPassword()` with the test account credentials
-2. WHEN Supabase Auth returns a valid session, THE Auth_Service SHALL fetch the user profile from `/api/auth/profile`
-3. WHEN the backend receives the profile request, THE auth middleware SHALL verify the JWT token via `supabaseAdmin.auth.getUser()`
+1. WHEN a Quick Login button is clicked, THE Auth_Service SHALL call `signInWithEmailAndPassword()` from Firebase Auth with the test account credentials
+2. WHEN Firebase Auth returns a valid session, THE Auth_Service SHALL fetch the user profile from `/api/auth/profile`
+3. WHEN the backend receives the profile request, THE auth middleware SHALL verify the JWT token via Firebase Admin `verifyIdToken()`
 4. WHEN the JWT is valid, THE backend SHALL query the Users_Table using the auth_id to retrieve the user's role and profile data
 5. WHEN authentication succeeds, THE Login_Page SHALL invoke the `onLogin` callback with the complete user object including role information
 6. IF authentication fails for any reason, THE Login_Page SHALL display the standard error message returned by Auth_Service

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it, before, after } from "node:test";
 import request from "supertest";
-import { db } from "../../server/config/firebase-admin.js";
+import { db } from "../../backend/src/config/firebase-admin.js";
 import { createTestAppFactory } from "../setup/app.js";
 
 // Test user IDs

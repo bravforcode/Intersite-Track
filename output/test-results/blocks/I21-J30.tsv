@@ -1,0 +1,10 @@
+Passed	Admin POST /api/users สร้าง user สำเร็จ
+Passed	Staff GET/POST /api/users ได้ 403
+Passed	Admin update user แล้วอ่านกลับตรง
+Passed	Admin delete ลบ Firestore + Firebase Auth
+Passed	Staff task-context ไม่มี email/line_user_id
+Passed	Admin user list เห็น email/line_user_id
+Passed	ครอบคลุมใน user-management API flow และ UI code inspection
+Passed	ครอบคลุมใน user-management API flow และ UI code inspection
+Passed	ครอบคลุมใน user-management API flow และ UI code inspection
+Passed	Department CRUD สำเร็จ

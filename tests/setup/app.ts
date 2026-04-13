@@ -1,13 +1,13 @@
 import express, { Express, Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
-import { notFound, errorHandler } from "../../server/middleware/error.middleware.js";
+import { notFound, errorHandler } from "../../backend/src/middleware/error.middleware.js";
 import {
   getNotifications,
   getUnreadNotificationCount,
   markRead,
   markAllRead,
-} from "../../server/controllers/notification.controller.js";
+} from "../../backend/src/controllers/notification.controller.js";
 
 export interface TestUser {
   id: string;

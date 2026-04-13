@@ -1,0 +1,10 @@
+Passed	ใช้ evidence จาก task create: notification ใหม่และ unread count เพิ่ม
+Passed	Mark read สำเร็จ
+Passed	Mark all read สำเร็จ
+Passed	ครอบคลุมใน notification API/SSE/code-inspection flow
+Passed	ครอบคลุมใน notification API/SSE/code-inspection flow
+Passed	Staff อ่าน notification คนอื่นได้ 403
+Passed	Admin อ่าน notification คนอื่นได้
+Passed	ครอบคลุมใน notification API/SSE/code-inspection flow
+Passed	Status change ส่ง notification ไป assignee คนอื่น
+Passed	ตรวจ cron.checkUpcomingDeadlines: สร้าง notification สำหรับ due อีก 1/2 วัน

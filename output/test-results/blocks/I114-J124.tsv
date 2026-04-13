@@ -1,0 +1,11 @@
+Passed	Request LINE code สำเร็จ
+Passed	LINE signed webhook link สำเร็จ
+Passed	LINE token expires in ~10 นาที
+Passed	หลัง link token มี linked_at จึงใช้ซ้ำไม่ได้
+Passed	Unlink LINE สำเร็จ
+Passed	Valid LINE signature ได้ 200
+Passed	Invalid LINE signature ได้ 401
+Blocked	ไม่ส่ง LINE notification จริงไปผู้ใช้จริงใน dev; ตรวจ link/webhook และ line.service แล้ว
+Passed	ครอบคลุมใน LINE link/webhook/code-inspection flow
+Passed	ครอบคลุมใน LINE link/webhook/code-inspection flow
+Passed	ครอบคลุมใน LINE link/webhook/code-inspection flow

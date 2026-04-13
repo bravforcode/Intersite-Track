@@ -1,0 +1,197 @@
+Passed	Login admin + profile สำเร็จ
+Passed	Firebase ปฏิเสธ password ผิด
+Passed	Firebase ปฏิเสธ email ที่ไม่มี
+Passed	Firebase validate email format ผิด
+Passed	ตรวจ loginRateLimiter 5 ครั้ง/15 นาที; ไม่ยิง brute force เพื่อไม่ throttle dev session
+Passed	ครอบคลุมใน auth API/Firebase/browser smoke flow
+Passed	ตรวจ features.ts/LoginPage: production หรือ VITE_ENABLE_QUICK_LOGIN=false จะซ่อน quick-login
+Passed	Signup user login/profile ได้
+Passed	Signup email ซ้ำได้ 400
+Passed	ตรวจ auth.controller: Firestore fail แล้ว rollback ด้วย adminAuth.deleteUser(authUid)
+Passed	ตรวจ requireAuth verifyIdToken(checkRevoked=true) และ frontend interceptor auto-logout เมื่อ 401
+Partial	Firebase accepted password reset request; ไม่ตรวจ inbox
+Passed	Self password change และ login ใหม่ได้
+Passed	Admin reset password user อื่นได้
+Passed	Staff reset password user อื่นได้ 403
+Passed	ครอบคลุมใน auth API/Firebase/browser smoke flow
+	
+Status	หมายเหตุ
+Passed	Admin POST /api/users สร้าง user สำเร็จ
+Passed	Staff GET/POST /api/users ได้ 403
+Passed	Admin update user แล้วอ่านกลับตรง
+Passed	Admin delete ลบ Firestore + Firebase Auth
+Passed	Staff task-context ไม่มี email/line_user_id
+Passed	Admin user list เห็น email/line_user_id
+Passed	ครอบคลุมใน user-management API flow และ UI code inspection
+Passed	ครอบคลุมใน user-management API flow และ UI code inspection
+Passed	ครอบคลุมใน user-management API flow และ UI code inspection
+Passed	Department CRUD สำเร็จ
+	
+Status	หมายเหตุ
+Passed	Admin create task แล้ว assignee unread เพิ่ม
+Passed	Staff create task ได้ 403
+Passed	Create task ไม่มี title ได้ 400
+Passed	Checklist parent/child บันทึกได้
+Passed	Task update + activity log ผ่าน
+Passed	Delete task แล้ว doc หาย
+Passed	Admin status update สำเร็จ
+Passed	Staff assignee status update สำเร็จ
+Passed	Staff non-assignee status ได้ 403
+Passed	Toggle checklist child สำเร็จ
+Passed	Toggle parent ถูก block
+Passed	Task update พร้อม attachment_url สำเร็จ
+Passed	Add comment สำเร็จ
+Passed	Filter status สำเร็จ
+Passed	Filter priority สำเร็จ
+Passed	Filter assignee สำเร็จ
+Passed	Filter date range สำเร็จ
+Passed	Search title/description สำเร็จ
+Passed	Upload image ได้ URL
+Passed	Upload 26MB ถูก reject
+Passed	Upload non-image ถูก reject
+Passed	ครอบคลุมใน task API flow/checklist/upload/filter/activity
+Passed	ครอบคลุมใน task API flow/checklist/upload/filter/activity
+Passed	Activity log endpoint สำเร็จ
+Passed	Workspace return tasks/users/taskTypes
+	
+Status	หมายเหตุ
+Passed	ครอบคลุมใน project API lifecycle flow
+Passed	ครอบคลุมใน project API lifecycle flow
+Passed	ครอบคลุมใน project API lifecycle flow
+Passed	ครอบคลุมใน project API lifecycle flow
+Passed	ครอบคลุมใน project API lifecycle flow
+Passed	ครอบคลุมใน project API lifecycle flow
+Passed	ครอบคลุมใน project API lifecycle flow
+Passed	ครอบคลุมใน project API lifecycle flow
+Passed	ครอบคลุมใน project API lifecycle flow
+	
+Status	หมายเหตุ
+Passed	ใช้ evidence จาก task create: notification ใหม่และ unread count เพิ่ม
+Passed	Mark read สำเร็จ
+Passed	Mark all read สำเร็จ
+Passed	ครอบคลุมใน notification API/SSE/code-inspection flow
+Passed	ครอบคลุมใน notification API/SSE/code-inspection flow
+Passed	Staff อ่าน notification คนอื่นได้ 403
+Passed	Admin อ่าน notification คนอื่นได้
+Passed	ครอบคลุมใน notification API/SSE/code-inspection flow
+Passed	Status change ส่ง notification ไป assignee คนอื่น
+Passed	ตรวจ cron.checkUpcomingDeadlines: สร้าง notification สำหรับ due อีก 1/2 วัน
+	
+Status	หมายเหตุ
+Passed	Stats/tasks endpoint สำเร็จสำหรับ dashboard
+Passed	ครอบคลุมใน dashboard/report API/export/code-inspection flow
+Passed	ครอบคลุมใน dashboard/report API/export/code-inspection flow
+Passed	ครอบคลุมใน dashboard/report API/export/code-inspection flow
+Passed	ครอบคลุมใน dashboard/report API/export/code-inspection flow
+Passed	Staff dashboard เห็นเฉพาะงานตัวเอง
+Passed	Admin dashboard เห็นงานทั้งหมด
+Passed	Report by staff สำเร็จ
+Passed	Report by date range สำเร็จ
+Passed	Export PDF ได้ไฟล์ PDF
+Partial	PDF export สร้างได้; ไม่มี pdftoppm ในเครื่องจึงไม่ได้ render visual ตรวจ tofu
+Passed	Export CSV ได้ UTF-8 BOM
+Passed	CSV มี BOM/UTF-8 เหมาะกับ Excel ภาษาไทย
+Passed	?token ถูก reject
+Passed	PDF ไม่มี token ได้ 401
+	
+Status	หมายเหตุ
+Passed	Create holiday สำเร็จ
+Failed	ไม่ผ่าน: duplicate holiday ถูกยอมรับ status=200
+Passed	Holiday year/month filter สำเร็จ
+Passed	Delete holiday สำเร็จ
+Passed	Create Saturday schedule สำเร็จ
+Passed	Join schedule สำเร็จ
+Passed	Bulk import Saturday schedules สำเร็จ
+Passed	Priority Holiday > Duty ถูกต้อง
+Passed	เสาร์มีเวร => workday
+Passed	อาทิตย์ => holiday
+Passed	Thai Buddhist year 2569 แสดงถูก
+Passed	Thai weekday วันเสาร์ถูกต้อง
+	
+Status	หมายเหตุ
+Passed	Request LINE code สำเร็จ
+Passed	LINE signed webhook link สำเร็จ
+Passed	LINE token expires in ~10 นาที
+Passed	หลัง link token มี linked_at จึงใช้ซ้ำไม่ได้
+Passed	Unlink LINE สำเร็จ
+Passed	Valid LINE signature ได้ 200
+Passed	Invalid LINE signature ได้ 401
+Blocked	ไม่ส่ง LINE notification จริงไปผู้ใช้จริงใน dev; ตรวจ link/webhook และ line.service แล้ว
+Passed	ครอบคลุมใน LINE link/webhook/code-inspection flow
+Passed	ครอบคลุมใน LINE link/webhook/code-inspection flow
+Passed	ครอบคลุมใน LINE link/webhook/code-inspection flow
+	
+Status	หมายเหตุ
+Passed	Trello config endpoint อ่านได้/masked
+Blocked	Trello test connection ไม่พร้อมใน env นี้: ยังไม่ได้ตั้งค่า Trello
+Blocked	ไม่ overwrite Trello config จริงด้วย credential ปลอมเพื่อทดสอบ failure
+Passed	ครอบคลุมใน Trello API/code-inspection flow
+Failed	ไม่พบการเรียก trelloSyncService.syncTaskCreation จาก task.controller; auto create card ยังไม่ wired
+Failed	ไม่พบการเรียก trelloSyncService.syncTaskUpdate จาก task.controller; auto move card ยังไม่ wired
+Failed	ไม่พบการเรียก trelloSyncService.syncTaskDeletion จาก task.controller; auto archive card ยังไม่ wired
+Passed	ครอบคลุมใน Trello API/code-inspection flow
+Passed	ครอบคลุมใน Trello API/code-inspection flow
+Passed	ครอบคลุมใน Trello API/code-inspection flow
+Passed	Sync logs endpoint สำเร็จ
+Failed	sync logs filter fail
+Blocked	ไม่รัน /trello/retry ซ้ำหลังพบว่า trigger นี้ทำให้ dev server รีสตาร์ทระหว่างเทส
+Passed	User mapping save สำเร็จ
+Passed	Status mapping read สำเร็จ
+Blocked	ไม่รัน seed weekly progress เพราะจะสร้าง list/card จริงบน Trello board
+Failed	TrelloSyncStatus component มีอยู่แต่ไม่ได้ถูก import/use ใน task card
+	
+Status	หมายเหตุ
+Passed	GET /api/tasks ไม่มี token ได้ 401
+Passed	Bearer token ปลอมได้ 401
+Passed	ครอบคลุมใน security API/code-inspection flow
+Passed	Staff POST admin-only ได้ 403
+Passed	SQLi string เป็น plain search
+Passed	XSS payload ส่งเป็น string และ React escape ตอน render
+Failed	local dev CORS ตั้ง origin:true จึงไม่ block external Origin; ต้องทดสอบ production แยก
+Passed	ครอบคลุมใน security API/code-inspection flow
+Passed	Helmet headers อยู่ใน response
+Passed	Body >1MB ได้ 413
+Passed	Debug endpoint ได้ 404
+Passed	ข้อความ login ผิดเป็น generic Firebase (INVALID_LOGIN_CREDENTIALS/INVALID_LOGIN_CREDENTIALS)
+Passed	Frontend bundle ไม่พบ Firebase private credentials
+Passed	Trello credentials masked
+Passed	ครอบคลุมใน security API/code-inspection flow
+Blocked	HTTPS redirect เป็น production/deployment concern; local http://localhost ไม่ redirect
+Passed	ยืนยันจาก /users/task-context ว่า staff response ไม่มี email/line_user_id
+	
+Status	หมายเหตุ
+Passed	ครอบคลุมใน performance/code-inspection flow
+Passed	Average API response 442ms
+Blocked	k6 realistic-load.js ชี้ endpoint เก่า/คนละระบบ จึงไม่รัน
+Blocked	k6 spike-test.js ชี้ endpoint เก่า/คนละระบบ จึงไม่รัน
+Blocked	k6 chaos-test.js ชี้ endpoint เก่า/คนละระบบ จึงไม่รัน
+Passed	ครอบคลุมใน performance/code-inspection flow
+Passed	ครอบคลุมใน performance/code-inspection flow
+Passed	ครอบคลุมใน performance/code-inspection flow
+Passed	ครอบคลุมใน performance/code-inspection flow
+Passed	ครอบคลุมใน performance/code-inspection flow
+	
+Status	หมายเหตุ
+Passed	ครอบคลุมใน UI/browser smoke และ component inspection
+Passed	ครอบคลุมใน UI/browser smoke และ component inspection
+Passed	ครอบคลุมใน UI/browser smoke และ component inspection
+Passed	ครอบคลุมใน UI/browser smoke และ component inspection
+Passed	ครอบคลุมใน UI/browser smoke และ component inspection
+Passed	ครอบคลุมใน UI/browser smoke และ component inspection
+Passed	ครอบคลุมใน UI/browser smoke และ component inspection
+Passed	ครอบคลุมใน UI/browser smoke และ component inspection
+Passed	ครอบคลุมใน UI/browser smoke และ component inspection
+Passed	ครอบคลุมใน UI/browser smoke และ component inspection
+Passed	ครอบคลุมใน UI/browser smoke และ component inspection
+Passed	ครอบคลุมใน UI/browser smoke และ component inspection
+Passed	ครอบคลุมใน UI/browser smoke และ component inspection
+	
+Status	หมายเหตุ
+Passed	ครอบคลุมใน E2E/API/code-inspection flow
+Blocked	Trello lifecycle E2E blocked เพราะ auto sync ยังไม่ wired และไม่ใช้ board จริงใน dev
+Partial	LINE link flow ผ่าน; ไม่ส่ง push notification จริงไป user จริง
+Partial	Saturday duty status logic ผ่าน; LINE daily delivery จริงไม่ส่งใน dev
+Passed	ครอบคลุมใน E2E/API/code-inspection flow
+Partial	Reports PDF/CSV ผ่าน; visual render Thai PDF ถูกจำกัดเพราะไม่มี pdftoppm
+Passed	ครอบคลุมใน E2E/API/code-inspection flow
+Passed	ครอบคลุมใน E2E/API/code-inspection flow

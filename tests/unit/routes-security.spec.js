@@ -9,7 +9,7 @@ const __dirname = dirname(__filename);
 
 test("debug endpoint is removed from server/routes/index.ts", () => {
   const routesFile = readFileSync(
-    join(__dirname, "../../server/routes/index.ts"),
+    join(__dirname, "../../backend/src/routes/index.ts"),
     "utf-8"
   );
 

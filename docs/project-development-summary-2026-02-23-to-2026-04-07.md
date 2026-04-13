@@ -74,7 +74,7 @@
 ### Card W9-3 | Schema Review
 - งาน: ทบทวนว่าระบบต้องมี comments, audit logs และข้อมูลเสริมอื่น ๆ
 - ผลลัพธ์: เตรียมฐานสำหรับ migration และฟีเจอร์ใช้งานจริงในสัปดาห์ถัดไป
-- หลักฐาน: `supabase/migrations/20260318000000_premium_features.sql`
+- หลักฐาน: legacy schema migration สำหรับ premium features ก่อนย้าย Firebase-only
 - ภาพประกอบที่ควรแนบ: schema migration ส่วน comments / audit logs
 
 ### Card W9-4 | Refactor Checklist
@@ -95,8 +95,8 @@
 - ภาพประกอบที่ควรแนบ: history หรือโครงสร้างไฟล์ก่อนรีแฟกเตอร์
 
 ### Card W10-2 | Intersite Upgrade
-- งาน: รีแบรนด์ระบบและย้ายไป `Supabase Auth + PostgreSQL`
-- ผลลัพธ์: ได้โครงใหม่ทั้ง frontend และ backend พร้อม flow login ที่ครบขึ้น
+- งาน: รีแบรนด์ระบบและยกเครื่อง auth/data layer รอบใหญ่
+- ผลลัพธ์: ได้โครงใหม่ทั้ง frontend และ backend ซึ่งต่อมาถูก migrate ต่อจนเป็น Firebase-only
 - หลักฐาน: commit `a0270db`
 - ภาพประกอบที่ควรแนบ: หน้า Login หรือ README ใหม่
 
@@ -115,7 +115,7 @@
 ### Card W10-5 | Schema Completion
 - งาน: เพิ่ม `task_comments`, `task_audit_logs` และ index/policy ที่จำเป็น
 - ผลลัพธ์: รองรับ comment history และ audit trail ได้ครบขึ้น
-- หลักฐาน: commit `bbd867a`, `supabase/migrations/20260318220000_schema_completion.sql`
+- หลักฐาน: commit `bbd867a`, legacy schema completion migration ก่อนย้าย Firebase-only
 - ภาพประกอบที่ควรแนบ: migration file
 
 ### Card W10-6 | Core Overhaul
@@ -191,7 +191,7 @@
 ### Card W12-5 | Project Module
 - งาน: เพิ่ม `projects`, `project_milestones`, `blockers`, `project_weekly_updates` และเชื่อม `task -> project`
 - ผลลัพธ์: ระบบขยายจาก task tracking ไปสู่ project operations ได้จริง
-- หลักฐาน: commit `b807ceb`, `supabase/migrations/20260401000000_project_module.sql`
+- หลักฐาน: commit `b807ceb`, legacy project-module migration ก่อนย้าย Firebase-only
 - ภาพประกอบที่ควรแนบ: หน้า Projects หรือ schema project module
 
 ### Card W12-6 | PDF Report
@@ -203,13 +203,13 @@
 ### Card W12-7 | LINE Notification
 - งาน: เพิ่ม `line.service.ts`, cron logic และ `line_user_id` ในระบบผู้ใช้
 - ผลลัพธ์: ระบบเริ่ม push notification ออกไปยังผู้ใช้ได้จริง
-- หลักฐาน: commit `b807ceb`, `supabase/migrations/20260401120000_add_line_user_id.sql`
+- หลักฐาน: commit `b807ceb`, legacy `line_user_id` migration ก่อนย้าย Firebase-only
 - ภาพประกอบที่ควรแนบ: LINE settings หรือ user profile field
 
 ### Card W12-8 | Task Metadata
 - งาน: เพิ่ม `status`, `color`, `tags` ให้ projects และ `tags` ให้ tasks
 - ผลลัพธ์: รองรับการจัดกลุ่มงานและกรองข้อมูลได้ดีขึ้น
-- หลักฐาน: `supabase/migrations/20260401130000_enhance_projects.sql`, `supabase/migrations/20260401140000_add_task_tags.sql`
+- หลักฐาน: legacy project/task metadata migrations ก่อนย้าย Firebase-only
 - ภาพประกอบที่ควรแนบ: project form หรือ task filter
 
 ### Card W12-9 | Dashboard & PWA

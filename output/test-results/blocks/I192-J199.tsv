@@ -1,0 +1,8 @@
+Passed	ครอบคลุมใน E2E/API/code-inspection flow
+Blocked	Trello lifecycle E2E blocked เพราะ auto sync ยังไม่ wired และไม่ใช้ board จริงใน dev
+Partial	LINE link flow ผ่าน; ไม่ส่ง push notification จริงไป user จริง
+Partial	Saturday duty status logic ผ่าน; LINE daily delivery จริงไม่ส่งใน dev
+Passed	ครอบคลุมใน E2E/API/code-inspection flow
+Partial	Reports PDF/CSV ผ่าน; visual render Thai PDF ถูกจำกัดเพราะไม่มี pdftoppm
+Passed	ครอบคลุมใน E2E/API/code-inspection flow
+Passed	ครอบคลุมใน E2E/API/code-inspection flow

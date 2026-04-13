@@ -1,0 +1,20 @@
+{
+  "projectKey": "taskam",
+  "projectName": "TaskAm",
+  "projectFolder": "TaskAm",
+  "scanDirs": [
+    "src",
+    "server",
+    "scripts",
+    "tests"
+  ],
+  "scanExtensions": [
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs"
+  ],
+  "screenshotDir": "docs/screenshots"
+}

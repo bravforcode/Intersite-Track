@@ -874,12 +874,10 @@ project-root/
 Required environment variables for Vercel:
 
 ```bash
-# Database
-PGHOST=your-postgres-host
-PGPORT=5432
-PGDATABASE=your-database-name
-PGUSER=your-database-user
-PGPASSWORD=your-database-password
+# Firebase Admin SDK
+FIREBASE_PROJECT_ID=your-firebase-project-id
+FIREBASE_CLIENT_EMAIL=your-service-account-email
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
 
 # JWT
 JWT_SECRET=your-secret-key-min-32-chars
@@ -889,26 +887,22 @@ JWT_EXPIRES_IN=24h
 NODE_ENV=production
 ```
 
-### Database Connection Pooling
+### Firebase Admin Initialization
 
-For serverless environments, use connection pooling to avoid exhausting database connections:
+For serverless environments, initialize Firebase Admin once and reuse the app across invocations:
 
 ```typescript
-import { Pool } from 'pg';
+import admin from 'firebase-admin';
 
-const pool = new Pool({
-  host: process.env.PGHOST,
-  port: Number(process.env.PGPORT),
-  database: process.env.PGDATABASE,
-  user: process.env.PGUSER,
-  password: process.env.PGPASSWORD,
-  max: 1,  // Serverless: 1 connection per function instance
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 10000,
+const firebaseApp = admin.apps[0] ?? admin.initializeApp({
+  credential: admin.credential.cert({
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  }),
 });
 
-// Reuse pool across function invocations
-export default pool;
+export const db = admin.firestore(firebaseApp);
 ```
 
 ### File Upload Handling

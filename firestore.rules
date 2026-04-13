@@ -1,0 +1,25 @@
+rules_version = '2';
+//
+// Firestore Security Rules — Intersite Track
+// ============================================
+// ALL client-side access is DENIED by default.
+// Every data operation MUST go through the Express backend (Firebase Admin SDK),
+// which bypasses these rules and enforces its own RBAC logic.
+//
+// If any collection is accidentally exposed in the future, these rules
+// ensure it cannot be read or written by the client directly.
+//
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow users to read their own notifications for real-time updates
+    match /notifications/{notificationId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.user_id;
+      allow write: if false; // All writes still go through backend
+    }
+
+    // Lock down everything else. No client SDK read/write allowed.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

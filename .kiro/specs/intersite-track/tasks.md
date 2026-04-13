@@ -391,7 +391,7 @@ The implementation is designed to be incremental, with each task building on pre
     - _Requirements: 5.1, 5.3, 5.5_
 
   - [ ] 20.2 Configure environment variables
-    - Create .env.example with required variables (PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD, JWT_SECRET, JWT_EXPIRES_IN)
+    - Create .env.example with required variables (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY, JWT_SECRET, JWT_EXPIRES_IN)
     - Document environment variable setup in README
     - _Requirements: 5.2_
 

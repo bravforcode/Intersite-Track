@@ -1,0 +1,17 @@
+Passed	GET /api/tasks ไม่มี token ได้ 401
+Passed	Bearer token ปลอมได้ 401
+Passed	ครอบคลุมใน security API/code-inspection flow
+Passed	Staff POST admin-only ได้ 403
+Passed	SQLi string เป็น plain search
+Passed	XSS payload ส่งเป็น string และ React escape ตอน render
+Failed	local dev CORS ตั้ง origin:true จึงไม่ block external Origin; ต้องทดสอบ production แยก
+Passed	ครอบคลุมใน security API/code-inspection flow
+Passed	Helmet headers อยู่ใน response
+Passed	Body >1MB ได้ 413
+Passed	Debug endpoint ได้ 404
+Passed	ข้อความ login ผิดเป็น generic Firebase (INVALID_LOGIN_CREDENTIALS/INVALID_LOGIN_CREDENTIALS)
+Passed	Frontend bundle ไม่พบ Firebase private credentials
+Passed	Trello credentials masked
+Passed	ครอบคลุมใน security API/code-inspection flow
+Blocked	HTTPS redirect เป็น production/deployment concern; local http://localhost ไม่ redirect
+Passed	ยืนยันจาก /users/task-context ว่า staff response ไม่มี email/line_user_id

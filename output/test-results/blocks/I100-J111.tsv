@@ -1,0 +1,12 @@
+Passed	Create holiday สำเร็จ
+Failed	ไม่ผ่าน: duplicate holiday ถูกยอมรับ status=200
+Passed	Holiday year/month filter สำเร็จ
+Passed	Delete holiday สำเร็จ
+Passed	Create Saturday schedule สำเร็จ
+Passed	Join schedule สำเร็จ
+Passed	Bulk import Saturday schedules สำเร็จ
+Passed	Priority Holiday > Duty ถูกต้อง
+Passed	เสาร์มีเวร => workday
+Passed	อาทิตย์ => holiday
+Passed	Thai Buddhist year 2569 แสดงถูก
+Passed	Thai weekday วันเสาร์ถูกต้อง

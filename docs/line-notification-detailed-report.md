@@ -52,7 +52,7 @@
 **ผลลัพธ์:** ระบบสามารถผูก user ในระบบกับ LINE user ID ได้ ทำให้ส่งแจ้งเตือนรายบุคคลได้จริง  
 **หลักฐาน:**
 - commit `b807ceb`
-- `supabase/migrations/20260401120000_add_line_user_id.sql`
+- legacy schema migration สำหรับ `line_user_id` ก่อนย้าย Firebase-only
 
 **ภาพประกอบที่ควรแนบ:**
 - ภาพ migration ที่เพิ่ม field `line_user_id`

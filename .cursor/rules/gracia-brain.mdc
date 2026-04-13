@@ -1,0 +1,8 @@
+---
+description: Gracia Brain shared context
+alwaysApply: true
+globs: ["**/*"]
+---
+
+Read `Meta/AI/context-cache/taskam/preflight.md` first.
+Only load latest.md for complex tasks.

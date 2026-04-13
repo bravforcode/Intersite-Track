@@ -1,0 +1,15 @@
+Passed	Stats/tasks endpoint สำเร็จสำหรับ dashboard
+Passed	ครอบคลุมใน dashboard/report API/export/code-inspection flow
+Passed	ครอบคลุมใน dashboard/report API/export/code-inspection flow
+Passed	ครอบคลุมใน dashboard/report API/export/code-inspection flow
+Passed	ครอบคลุมใน dashboard/report API/export/code-inspection flow
+Passed	Staff dashboard เห็นเฉพาะงานตัวเอง
+Passed	Admin dashboard เห็นงานทั้งหมด
+Passed	Report by staff สำเร็จ
+Passed	Report by date range สำเร็จ
+Passed	Export PDF ได้ไฟล์ PDF
+Partial	PDF export สร้างได้; ไม่มี pdftoppm ในเครื่องจึงไม่ได้ render visual ตรวจ tofu
+Passed	Export CSV ได้ UTF-8 BOM
+Passed	CSV มี BOM/UTF-8 เหมาะกับ Excel ภาษาไทย
+Passed	?token ถูก reject
+Passed	PDF ไม่มี token ได้ 401

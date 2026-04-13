@@ -6,7 +6,7 @@ import {
   classifyOperationalDay,
   formatThaiDate,
   getThaiWeekday,
-} from "../../server/utils/dayStatus.ts";
+} from "../../backend/src/utils/dayStatus.ts";
 
 test("formats thai date and weekday from ISO date without timezone drift", () => {
   assert.equal(getThaiWeekday("2026-04-11"), "วันเสาร์");

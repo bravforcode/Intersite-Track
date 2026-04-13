@@ -1,23 +1,64 @@
-{
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "functions": {
-    "api/[...all].ts": {
-      "includeFiles": "server/**"
+﻿{
+  "version": 2,
+  "buildCommand": "npm run build && npm run build:be",
+  "public": false,
+  "builds": [
+    {
+      "src": "backend/api/[...all].ts",
+      "use": "@vercel/node@2.15.1",
+      "config": {
+        "includeFiles": "backend/src/**",
+        "excludeFiles": "**/node_modules/**",
+        "nodeVersion": "20.x"
+      }
+    },
+    {
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build@latest",
+      "config": {
+        "distDir": "frontend/dist",
+        "buildCommand": "npm run build"
+      }
     }
-  },
+  ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/api/[...all]"
+      "dest": "backend/api/[...all].ts",
+      "headers": {
+        "Cache-Control": "no-cache, no-store, must-revalidate"
+      }
     },
     {
-      "handle": "filesystem"
+      "src": "/(.*)\\.(?:js|css|map|json|woff|woff2|ttf|eot|svg|png|jpg|jpeg|gif|webp)$",
+      "dest": "/frontend/dist/$1.$2",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
     },
     {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/frontend/dist/index.html"
     }
-  ]
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "envs": {
+    "DATABASE_URL": "@database_url",
+    "FIREBASE_PROJECT_ID": "@firebase_project_id",
+    "FIREBASE_PRIVATE_KEY": "@firebase_private_key",
+    "FIREBASE_CLIENT_EMAIL": "@firebase_client_email",
+    "FIREBASE_STORAGE_BUCKET": "@firebase_storage_bucket",
+    "TRELLO_API_KEY": "@trello_api_key",
+    "TRELLO_TOKEN": "@trello_token",
+    "LINE_BOT_TOKEN": "@line_bot_token",
+    "LINE_CHANNEL_SECRET": "@line_channel_secret"
+  },
+  "functions": {
+    "backend/api/[...all].ts": {
+      "maxDuration": 60,
+      "memory": 1024
+    }
+  }
 }
