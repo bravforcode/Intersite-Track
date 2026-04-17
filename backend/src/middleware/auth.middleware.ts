@@ -2,24 +2,131 @@
 import { Request, Response, NextFunction } from "express";
 import { adminAuth, db } from "../config/firebase-admin.js";
 
-/** Cache TTL: 15s for sensitive ops, 30s general */
-const AUTH_CACHE_TTL_MS = 30_000;
+type CachedUser = {
+  id: string;
+  userId: string;
+  authId: string;
+  email: string | null;
+  username: string;
+  role: string;
+  first_name: string;
+  last_name: string;
+  department_id: string | null;
+  department_name: string | null;
+  position: string | null;
+  created_at?: string;
+};
 
-const authCache = new Map<
-  string,
-  {
-    expiresAt: number;
-    user: Express.Request["user"];
-  }
->();
+const userCache = new Map<string, { user: CachedUser; expiresAt: number }>();
 
-// Cleanup expired cache entries every 2 minutes to prevent memory leak
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, val] of authCache.entries()) {
-    if (val.expiresAt < now) authCache.delete(key);
+function extractBearerToken(req: Request): string | undefined {
+  const authHeader = req.headers.authorization;
+  return authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : undefined;
+}
+
+function isCronSecretRequest(req: Request, token: string): boolean {
+  const cronSecret = process.env.CRON_SECRET?.trim();
+  if (!cronSecret || token !== cronSecret) {
+    return false;
   }
-}, 2 * 60_000).unref();
+
+  return req.path.startsWith("/cron/") || req.originalUrl.startsWith("/api/cron/");
+}
+
+type AuthResolution =
+  | { ok: true; user: CachedUser }
+  | { ok: false; status: number; error: string; detail?: string };
+
+async function resolveUserFromToken(token: string): Promise<AuthResolution> {
+  let decodedToken: FirebaseFirestore.DocumentData;
+  try {
+    decodedToken = await adminAuth.verifyIdToken(token, /* checkRevoked= */ true);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    const isRevoked = message.includes("revoked");
+    process.stderr.write(`[AUTH] verifyIdToken FAILED: ${message}\n`);
+    return {
+      ok: false,
+      status: 401,
+      error: isRevoked
+        ? "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่"
+        : "Token ไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่",
+    };
+  }
+
+  const uid = decodedToken.uid as string;
+  const cacheTtlMs = Number(process.env.AUTH_USER_CACHE_TTL_MS ?? "30000");
+
+  if (Number.isFinite(cacheTtlMs) && cacheTtlMs > 0) {
+    const cached = userCache.get(uid);
+    if (cached && Date.now() < cached.expiresAt) {
+      return { ok: true, user: cached.user };
+    }
+  }
+
+  let userDoc: FirebaseFirestore.DocumentSnapshot;
+  try {
+    userDoc = await db.collection("users").doc(uid).get();
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`[AUTH] Firestore get FAILED for uid=${uid}: ${errMsg}\n`);
+    const allowStale =
+      process.env.NODE_ENV !== "production" &&
+      (process.env.AUTH_ALLOW_STALE_ON_ERROR ?? "1") === "1";
+
+    const cached = userCache.get(uid);
+    if (allowStale && cached) {
+      return { ok: true, user: cached.user };
+    }
+
+    return {
+      ok: false,
+      status: 500,
+      error: "เกิดข้อผิดพลาดในการดึงข้อมูลผู้ใช้",
+      ...(process.env.NODE_ENV === "development" ? { detail: errMsg } : {}),
+    };
+  }
+
+  if (!userDoc.exists) {
+    process.stderr.write(`[AUTH] User doc not found: uid=${uid}\n`);
+    return { ok: false, status: 401, error: "ไม่พบข้อมูลผู้ใช้ กรุณาติดต่อแอดมิน" };
+  }
+
+  const appUser = userDoc.data()!;
+  const mappedUser: CachedUser = {
+    id: uid,
+    userId: uid,
+    authId: uid,
+    email: appUser.email ?? null,
+    username: appUser.username ?? "",
+    role: appUser.role ?? "staff",
+    first_name: appUser.first_name ?? "",
+    last_name: appUser.last_name ?? "",
+    department_id: appUser.department_id ?? null,
+    department_name: null,
+    position: appUser.position ?? null,
+    ...(typeof appUser.created_at === "string" ? { created_at: appUser.created_at } : {}),
+  };
+
+  if (Number.isFinite(cacheTtlMs) && cacheTtlMs > 0) {
+    // SECURITY/PERFORMANCE: Bound the cache to prevent memory pressure on serverless instances
+    if (userCache.size >= 500) {
+      // Evict the first (oldest) entry to maintain size
+      const firstKey = userCache.keys().next().value;
+      if (firstKey !== undefined) userCache.delete(firstKey);
+    }
+    userCache.set(uid, { user: mappedUser, expiresAt: Date.now() + cacheTtlMs });
+  }
+
+  return { ok: true, user: mappedUser };
+}
+
+function sendAuthError(res: Response, result: Extract<AuthResolution, { ok: false }>): void {
+  res.status(result.status).json({
+    error: result.error,
+    ...(result.detail ? { detail: result.detail } : {}),
+  });
+}
 
 /**
  * Verify Firebase ID Token and attach the mapped application user to req.user.
@@ -29,86 +136,25 @@ setInterval(() => {
  * into server logs, browser history, and Referer headers.
  */
 export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const authHeader = req.headers.authorization;
-  let token: string | undefined;
-
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    token = authHeader.substring(7);
+  if (req.user) {
+    next();
+    return;
   }
 
+  const token = extractBearerToken(req);
   if (!token) {
     res.status(401).json({ error: "กรุณาเข้าสู่ระบบก่อน" });
     return;
   }
 
-  // Fast path: serve from cache
-  const cached = authCache.get(token);
-  if (cached && cached.expiresAt > Date.now()) {
-    req.user = cached.user;
-    next();
-    return;
-  }
-
   try {
-    // checkRevoked: true detects tokens that have been revoked via Firebase Admin
-    let decodedToken: FirebaseFirestore.DocumentData;
-    try {
-      decodedToken = await adminAuth.verifyIdToken(token, /* checkRevoked= */ true);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      const isRevoked = message.includes("revoked");
-      process.stderr.write(`[AUTH] verifyIdToken FAILED: ${message}\n`);
-      res.status(401).json({
-        error: isRevoked
-          ? "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่"
-          : "Token ไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่",
-      });
+    const result = await resolveUserFromToken(token);
+    if (!result.ok) {
+      sendAuthError(res, result);
       return;
     }
 
-    const uid = decodedToken.uid as string;
-
-    let userDoc: FirebaseFirestore.DocumentSnapshot;
-    try {
-      userDoc = await db.collection("users").doc(uid).get();
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`[AUTH] Firestore get FAILED for uid=${uid}: ${errMsg}\n`);
-      res.status(500).json({ 
-        error: "เกิดข้อผิดพลาดในการดึงข้อมูลผู้ใช้",
-        ...(process.env.NODE_ENV === "development" && { detail: errMsg }),
-      });
-      return;
-    }
-
-    if (!userDoc.exists) {
-      process.stderr.write(`[AUTH] User doc not found: uid=${uid}\n`);
-      res.status(401).json({ error: "ไม่พบข้อมูลผู้ใช้ กรุณาติดต่อแอดมิน" });
-      return;
-    }
-
-    const appUser = userDoc.data()!;
-
-    req.user = {
-      id: uid,
-      userId: uid,
-      authId: uid,
-      email: appUser.email ?? null,
-      username: appUser.username ?? "",
-      role: appUser.role ?? "staff",
-      first_name: appUser.first_name ?? "",
-      last_name: appUser.last_name ?? "",
-      department_id: appUser.department_id ?? null,
-      department_name: null,
-      position: appUser.position ?? null,
-      created_at: appUser.created_at ?? undefined,
-    };
-
-    authCache.set(token, {
-      expiresAt: Date.now() + AUTH_CACHE_TTL_MS,
-      user: req.user,
-    });
-
+    req.user = result.user;
     next();
   } catch (err: unknown) {
     process.stderr.write(`[AUTH] unexpected error: ${err instanceof Error ? err.message : err}\n`);
@@ -117,6 +163,41 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 }
 
 export const verifyJWT = requireAuth;
+
+/**
+ * Attach req.user when a Bearer token is present, but allow public routes to
+ * proceed without a token. Invalid provided tokens still fail closed.
+ */
+export async function optionalAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (req.user) {
+    next();
+    return;
+  }
+
+  const token = extractBearerToken(req);
+  if (!token) {
+    next();
+    return;
+  }
+
+  if (isCronSecretRequest(req, token)) {
+    next();
+    return;
+  }
+
+  try {
+    const result = await resolveUserFromToken(token);
+    if (!result.ok) {
+      sendAuthError(res, result);
+      return;
+    }
+    req.user = result.user;
+    next();
+  } catch (err: unknown) {
+    process.stderr.write(`[AUTH] optional auth unexpected error: ${err instanceof Error ? err.message : err}\n`);
+    res.status(500).json({ error: "เกิดข้อผิดพลาด กรุณาลองใหม่" });
+  }
+}
 
 /**
  * Middleware factory to require one or more roles.
@@ -136,12 +217,4 @@ export function requireRole(...roles: string[]) {
 
     next();
   };
-}
-
-/**
- * Invalidate the auth cache for a specific token.
- * Call this when a user's role changes or they are disabled.
- */
-export function invalidateAuthCache(token: string): void {
-  authCache.delete(token);
 }
