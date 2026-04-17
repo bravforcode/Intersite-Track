@@ -1,26 +1,16 @@
-﻿{
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
   "buildCommand": "npm run build && npm run build:be",
+  "outputDirectory": "frontend/dist",
   "public": false,
-  "builds": [
-    {
-      "src": "backend/api/[...all].ts",
-      "use": "@vercel/node@2.15.1",
-      "config": {
-        "includeFiles": "backend/src/**",
-        "excludeFiles": "**/node_modules/**",
-        "nodeVersion": "20.x"
-      }
-    },
-    {
-      "src": "frontend/package.json",
-      "use": "@vercel/static-build@latest",
-      "config": {
-        "distDir": "frontend/dist",
-        "buildCommand": "npm run build"
-      }
+  "functions": {
+    "backend/api/[...all].ts": {
+      "maxDuration": 60,
+      "memory": 1024,
+      "includeFiles": "backend/src/**"
     }
-  ],
+  },
   "routes": [
     {
       "src": "/api/(.*)",
@@ -30,8 +20,15 @@
       }
     },
     {
-      "src": "/(.*)\\.(?:js|css|map|json|woff|woff2|ttf|eot|svg|png|jpg|jpeg|gif|webp)$",
-      "dest": "/frontend/dist/$1.$2",
+      "src": "/assets/(.*)",
+      "dest": "/frontend/dist/assets/$1",
+      "headers": {
+        "Cache-Control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "src": "/(.+\\.(js|css|map|woff|woff2|ttf|eot|svg|png|jpg|jpeg|gif|webp|ico|json))",
+      "dest": "/frontend/dist/$1",
       "headers": {
         "Cache-Control": "public, max-age=31536000, immutable"
       }
@@ -41,24 +38,14 @@
       "dest": "/frontend/dist/index.html"
     }
   ],
-  "env": {
-    "NODE_ENV": "production"
-  },
-  "envs": {
-    "DATABASE_URL": "@database_url",
-    "FIREBASE_PROJECT_ID": "@firebase_project_id",
-    "FIREBASE_PRIVATE_KEY": "@firebase_private_key",
-    "FIREBASE_CLIENT_EMAIL": "@firebase_client_email",
-    "FIREBASE_STORAGE_BUCKET": "@firebase_storage_bucket",
-    "TRELLO_API_KEY": "@trello_api_key",
-    "TRELLO_TOKEN": "@trello_token",
-    "LINE_BOT_TOKEN": "@line_bot_token",
-    "LINE_CHANNEL_SECRET": "@line_channel_secret"
-  },
-  "functions": {
-    "backend/api/[...all].ts": {
-      "maxDuration": 60,
-      "memory": 1024
+  "crons": [
+    {
+      "path": "/api/cron/daily-morning",
+      "schedule": "0 1 * * *"
+    },
+    {
+      "path": "/api/cron/daily-evening",
+      "schedule": "0 13 * * *"
     }
-  }
+  ]
 }
