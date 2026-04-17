@@ -3,6 +3,7 @@ import { ClipboardList, Loader2, Mail, Lock, Eye, EyeOff, Sparkles } from "lucid
 import { motion, AnimatePresence } from "motion/react";
 import { authService } from "../../services/authService";
 import { features, quickLoginAccounts } from "../../config/features";
+import { PASSWORD_REQUIREMENTS_HINT, validatePassword } from "../../utils/validators";
 import type { User } from "../../types";
 
 interface LoginPageProps {
@@ -79,8 +80,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         setLoading(false);
         return;
       }
-      if (password.length < 8) {
-        setError("รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร");
+      const passwordError = validatePassword(password);
+      if (passwordError) {
+        setError(passwordError);
         setLoading(false);
         return;
       }
@@ -315,29 +317,41 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     </p>
                   </div>
                   <div className="space-y-2">
-                    {quickLoginAccounts.map(account => (
-                      <motion.button
-                        key={account.email}
-                        type="button"
-                        disabled={loading}
-                        whileHover={{ y: -1 }}
-                        whileTap={{ scale: 0.99 }}
-                        onClick={() => void handleQuickLogin(account)}
-                        className="w-full rounded-2xl border border-sky-100 bg-linear-to-r from-sky-50 via-white to-blue-50 px-4 py-3 text-left transition-all hover:border-blue-200 hover:shadow-md hover:shadow-blue-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">{account.label}</p>
-                            <p className="text-xs text-sky-700/70 mt-1">{account.subtitle}</p>
+                    {quickLoginAccounts.map(account => {
+                      const isAdmin = account.label.toLowerCase().includes("admin");
+                      const roleLabel = isAdmin ? "Admin" : "Staff";
+                      const roleBg = isAdmin
+                        ? "bg-violet-100 text-violet-700"
+                        : "bg-emerald-100 text-emerald-700";
+                      return (
+                        <motion.button
+                          key={account.email}
+                          type="button"
+                          disabled={loading}
+                          whileHover={{ y: -1 }}
+                          whileTap={{ scale: 0.99 }}
+                          onClick={() => void handleQuickLogin(account)}
+                          className="w-full rounded-2xl border border-sky-100 bg-linear-to-r from-sky-50 via-white to-blue-50 px-4 py-3 text-left transition-all hover:border-blue-200 hover:shadow-md hover:shadow-blue-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <p className="text-sm font-semibold text-slate-900 truncate">{account.label}</p>
+                                <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${roleBg}`}>
+                                  {roleLabel}
+                                </span>
+                              </div>
+                              <p className="text-xs text-sky-700/70">{account.subtitle}</p>
+                            </div>
+                            {loading ? (
+                              <Loader2 className="shrink-0 w-4 h-4 animate-spin text-blue-600" />
+                            ) : (
+                              <span className="shrink-0 text-xs font-semibold text-blue-600">เข้าสู่ระบบ</span>
+                            )}
                           </div>
-                          {loading ? (
-                            <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-                          ) : (
-                            <span className="text-xs font-semibold text-blue-600">เข้าสู่ระบบ</span>
-                          )}
-                        </div>
-                      </motion.button>
-                    ))}
+                        </motion.button>
+                      );
+                    })}
                   </div>
                   <p className="text-[11px] text-sky-700/65 text-center mt-3">
                     แสดงเฉพาะ development หรือ staging เท่านั้น
@@ -429,6 +443,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                       )}
                     </button>
                   </div>
+                  <p className="mt-2 text-xs text-sky-700/65">{PASSWORD_REQUIREMENTS_HINT}</p>
                 </div>
 
                 <div>
