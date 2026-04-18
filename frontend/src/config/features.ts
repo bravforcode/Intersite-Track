@@ -21,7 +21,8 @@ const quickLoginAccounts = buildQuickLoginAccounts({
   VITE_QUICK_LOGIN_STAFF_PASSWORD: import.meta.env.VITE_QUICK_LOGIN_STAFF_PASSWORD,
 });
 
-const isQuickLoginFlagEnabled = (import.meta.env.VITE_ENABLE_QUICK_LOGIN ?? "false").toLowerCase() === "true";
+const quickLoginFlag = (import.meta.env.VITE_ENABLE_QUICK_LOGIN ?? "true").trim().toLowerCase();
+const isQuickLoginFlagEnabled = !["false", "0", "off", "no"].includes(quickLoginFlag);
 const isQuickLoginActive = isQuickLoginEnabled({
   flagEnabled: isQuickLoginFlagEnabled,
   accountCount: quickLoginAccounts.length,
