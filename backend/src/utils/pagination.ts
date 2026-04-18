@@ -116,11 +116,12 @@ export function parsePaginationParams(query: any): {
   limit: number;
   offset: number;
 } {
-  const limit = Math.min(
-    parseInt(query.limit || "50", 10),
-    500 // Max 500 items per page
-  );
-  const offset = Math.max(parseInt(query.offset || "0", 10), 0);
+  const rawLimit = Number.parseInt(query.limit ?? "50", 10);
+  const rawOffset = Number.parseInt(query.offset ?? "0", 10);
+
+  // Guard against NaN (non-numeric query params) with safe defaults
+  const limit = Math.min(Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 50, 500);
+  const offset = Number.isFinite(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
 
   return { limit, offset };
 }

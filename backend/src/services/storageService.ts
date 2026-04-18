@@ -133,7 +133,7 @@ export async function getFileDownloadUrl(
   _fileMetadata: FileMetadata
 ): Promise<string> {
   // Server-side endpoint that performs auth checks before redirecting
-  return `/api/files/${fileId}/download?token=${encodeURIComponent(Buffer.from(fileId + Date.now()).toString("base64"))}`;
+  return `/api/files/${fileId}/download`;
 }
 
 /**

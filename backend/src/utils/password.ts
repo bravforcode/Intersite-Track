@@ -37,8 +37,12 @@ export function validatePasswordStrength(password: string): {
     errors.push("รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร");
   }
 
-  if (!/[a-zA-Z]/.test(password)) {
-    errors.push("รหัสผ่านต้องมีตัวอักษรอย่างน้อย 1 ตัว");
+  if (!/[A-Z]/.test(password)) {
+    errors.push("รหัสผ่านต้องมีตัวพิมพ์ใหญ่อย่างน้อย 1 ตัว");
+  }
+
+  if (!/[a-z]/.test(password)) {
+    errors.push("รหัสผ่านต้องมีตัวพิมพ์เล็กอย่างน้อย 1 ตัว");
   }
 
   if (!/[0-9]/.test(password)) {

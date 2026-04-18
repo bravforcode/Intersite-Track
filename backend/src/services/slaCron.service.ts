@@ -1,5 +1,5 @@
 import { db } from "../config/firebase-admin.js";
-import { findAllTasks } from "../database/queries/task.queries.js";
+import { findActiveTasks } from "../database/queries/task.queries.js";
 import { slaService } from "./sla.service.js";
 import { logger } from "../utils/logger.js";
 import { slaNotificationService } from "./slaNotification.service.js";
@@ -7,8 +7,7 @@ import { slaNotificationService } from "./slaNotification.service.js";
 export async function runSlaScan() {
   logger.info("Starting scheduled SLA scan for active tasks...");
   try {
-    const allTasks = await findAllTasks();
-    const activeTasks = allTasks.filter(t => t.status === "pending" || t.status === "in_progress");
+    const activeTasks = await findActiveTasks();
     
     let updatedCount = 0;
     const now = new Date().toISOString();

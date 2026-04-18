@@ -1,5 +1,4 @@
-import cron from "node-cron";
-import { findAllTasks } from "./database/queries/task.queries.js";
+import { findActiveTasks } from "./database/queries/task.queries.js";
 import { findHolidayByDate, findUpcomingHolidays } from "./database/queries/holiday.queries.js";
 import { findSaturdayScheduleByDate, findUpcomingSaturdaySchedules } from "./database/queries/saturdaySchedule.queries.js";
 import { findAllUsers, findUserById } from "./database/queries/user.queries.js";
@@ -30,7 +29,7 @@ function bangkokDayOfWeek(): number {
 export async function checkUpcomingDeadlines() {
   logger.info("Checking for upcoming deadlines...");
   try {
-    const tasks = await findAllTasks();
+    const tasks = await findActiveTasks();
     const now = new Date();
     const alertDays = [1, 2];
 
@@ -181,23 +180,27 @@ export async function checkSaturdayDuty() {
 
 // ─── Cron Schedules ──────────────────────────────────────────────────────────
 
-// Task deadlines + สถานะวันนี้: ทุกวัน 08:00
-cron.schedule("0 8 * * *", checkUpcomingDeadlines, { timezone: "Asia/Bangkok" });
-cron.schedule("0 8 * * *", checkTodayHoliday, { timezone: "Asia/Bangkok" });
+export async function scheduleCronJobs() {
+  const cron = await import("node-cron");
 
-// สถานะพรุ่งนี้: ทุกวัน 20:00
-cron.schedule("0 20 * * *", checkTomorrowHoliday, { timezone: "Asia/Bangkok" });
+  // Task deadlines + สถานะวันนี้: ทุกวัน 08:00
+  cron.schedule("0 8 * * *", checkUpcomingDeadlines, { timezone: "Asia/Bangkok" });
+  cron.schedule("0 8 * * *", checkTodayHoliday, { timezone: "Asia/Bangkok" });
 
-// สรุปวันหยุดสัปดาห์: ทุกวันจันทร์ 08:00
-cron.schedule("0 8 * * 1", sendWeeklyHolidaySummary, { timezone: "Asia/Bangkok" });
+  // สถานะพรุ่งนี้: ทุกวัน 20:00
+  cron.schedule("0 20 * * *", checkTomorrowHoliday, { timezone: "Asia/Bangkok" });
 
-// เวรเสาร์ reminder: ทุกวันศุกร์ 18:00
-cron.schedule("0 18 * * 5", checkFridaySaturdayReminder, { timezone: "Asia/Bangkok" });
+  // สรุปวันหยุดสัปดาห์: ทุกวันจันทร์ 08:00
+  cron.schedule("0 8 * * 1", sendWeeklyHolidaySummary, { timezone: "Asia/Bangkok" });
 
-// เวรเสาร์วันนี้: ทุกวันเสาร์ 08:00
-cron.schedule("0 8 * * 6", checkSaturdayDuty, { timezone: "Asia/Bangkok" });
+  // เวรเสาร์ reminder: ทุกวันศุกร์ 18:00
+  cron.schedule("0 18 * * 5", checkFridaySaturdayReminder, { timezone: "Asia/Bangkok" });
 
-// สแกน SLA Tasks: ทุกวัน 08:30, 12:30, 17:30
-cron.schedule("30 8,12,17 * * *", runSlaScan, { timezone: "Asia/Bangkok" });
+  // เวรเสาร์วันนี้: ทุกวันเสาร์ 08:00
+  cron.schedule("0 8 * * 6", checkSaturdayDuty, { timezone: "Asia/Bangkok" });
 
-logger.info("Cron jobs scheduled.");
+  // สแกน SLA Tasks: ทุกวัน 08:30, 12:30, 17:30
+  cron.schedule("30 8,12,17 * * *", runSlaScan, { timezone: "Asia/Bangkok" });
+
+  logger.info("Cron jobs scheduled.");
+}

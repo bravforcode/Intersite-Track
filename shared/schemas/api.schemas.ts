@@ -16,15 +16,17 @@ import { z } from "zod";
  * ============================================================================
  */
 
+const PasswordSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters")
+  .regex(/[A-Z]/, "Must contain uppercase letter")
+  .regex(/[a-z]/, "Must contain lowercase letter")
+  .regex(/[0-9]/, "Must contain number");
+
 // Sign Up validation
 export const SignUpSchema = z.object({
   email: z.string().email("Invalid email format"),
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Must contain uppercase letter")
-    .regex(/[a-z]/, "Must contain lowercase letter")
-    .regex(/[0-9]/, "Must contain number"),
+  password: PasswordSchema,
 });
 
 export const LoginSchema = z.object({
@@ -42,12 +44,29 @@ export const ProfileUpdateSchema = z.object({
 
 export const PasswordChangeSchema = z.object({
   current_password: z.string().min(1, "Current password is required"),
-  new_password: z
-    .string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Must contain uppercase letter")
-    .regex(/[a-z]/, "Must contain lowercase letter")
-    .regex(/[0-9]/, "Must contain number"),
+  new_password: PasswordSchema,
+});
+
+export const CreateUserSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  username: z.string().min(1, "Username is required").max(50),
+  password: PasswordSchema,
+  first_name: z.string().min(1, "First name is required").max(100),
+  last_name: z.string().min(1, "Last name is required").max(100),
+  role: z.enum(["admin", "staff"]).optional(),
+  department_id: z.string().nullable().optional(),
+  position: z.string().max(100).nullable().optional(),
+  line_user_id: z.string().nullable().optional(),
+});
+
+export const UpdateUserSchema = z.object({
+  username: z.string().min(1, "Username is required").max(50),
+  first_name: z.string().min(1, "First name is required").max(100),
+  last_name: z.string().min(1, "Last name is required").max(100),
+  role: z.enum(["admin", "staff"]),
+  department_id: z.string().nullable().optional(),
+  position: z.string().max(100).nullable().optional(),
+  line_user_id: z.string().nullable().optional(),
 });
 
 /**
@@ -154,6 +173,8 @@ export type SignUpInput = z.infer<typeof SignUpSchema>;
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type ProfileUpdateInput = z.infer<typeof ProfileUpdateSchema>;
 export type PasswordChangeInput = z.infer<typeof PasswordChangeSchema>;
+export type CreateUserInput = z.infer<typeof CreateUserSchema>;
+export type UpdateUserInput = z.infer<typeof UpdateUserSchema>;
 
 // Tasks
 export type CreateTaskInput = z.infer<typeof CreateTaskSchema>;

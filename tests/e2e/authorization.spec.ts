@@ -1,208 +1,61 @@
-/**
- * E2E Test: Authorization and Cross-Task Security
- * Tests: Prevents users from accessing/modifying tasks they don't have access to
- * Tests: Staff cannot manipulate other staff's time entries
- * Tests: File downloads require authentication
- */
-
 import { test, expect, testUtils, TEST_ACCOUNTS } from "./fixtures";
 
 test.describe("Authorization Security", () => {
-  test("staff user cannot see other staff tasks", async ({ page }) => {
-    // Login as staff user 1
-    await testUtils.login(page, TEST_ACCOUNTS.STAFF1.email, TEST_ACCOUNTS.STAFF1.password);
+  test("admin can access /api/users but staff receives 403", async ({ page }) => {
+    await testUtils.login(page, TEST_ACCOUNTS.ADMIN.email, TEST_ACCOUNTS.ADMIN.password);
+    const adminUsers = await testUtils.apiRequest<Array<{ id: string; email?: string }>>(page, {
+      url: "/api/users",
+    });
+    expect(adminUsers.status).toBe(200);
+    expect(Array.isArray(adminUsers.payload)).toBeTruthy();
 
-    // Navigate to tasks
-    await page.goto("/tasks");
-    await page.waitForLoadState("networkidle");
-
-    const visibleTasks = await page.locator('[data-testid="task-card"]').count();
-    console.log(`Staff 1 sees ${visibleTasks} tasks`);
-
-    // Staff should see limited tasks (only assigned to them or visible)
-    expect(visibleTasks).toBeGreaterThan(0);
-
-    // Logout
     await testUtils.logout(page);
+    await testUtils.login(page, TEST_ACCOUNTS.STAFF.email, TEST_ACCOUNTS.STAFF.password);
 
-    // Login as staff user 2
-    await testUtils.login(page, TEST_ACCOUNTS.STAFF2.email, TEST_ACCOUNTS.STAFF2.password);
+    const staffUsers = await testUtils.apiRequest(page, {
+      url: "/api/users",
+    });
+    expect(staffUsers.status).toBe(403);
+  });
 
-    // Navigate to same tasks URL with direct link (if they try to access specific task)
-    const taskIds = await page.evaluate(() => {
-      const cards = document.querySelectorAll('[data-testid="task-card"]');
-      return Array.from(cards)
-        .map((card) => (card as any).dataset.taskId)
-        .filter(Boolean);
+  test("staff only gets safe task-context users while admin-only activity feed stays protected", async ({ staffPage }) => {
+    const taskContext = await testUtils.apiRequest<Array<Record<string, unknown>>>(staffPage, {
+      url: "/api/users/task-context",
+    });
+    expect(taskContext.status).toBe(200);
+
+    const users = taskContext.payload as Array<Record<string, unknown>>;
+    expect(Array.isArray(users)).toBeTruthy();
+    users.forEach(user => {
+      expect("email" in user).toBeFalsy();
+      expect("line_user_id" in user).toBeFalsy();
     });
 
-    // Staff 2 should not see tasks visible to Staff 1
-    // (unless specifically assigned or shared)
-    if (taskIds.length > 0) {
-      const firstTaskId = taskIds[0];
-      await page.goto(`/tasks/${firstTaskId}`);
-      await page.waitForTimeout(1000);
-
-      // Should either show task (if shared) or show 403 error
-      const errorElement = page.locator('[data-testid="access-denied"]');
-      const hasAccessDenied = await errorElement.isVisible().catch(() => false);
-
-      // Either they see the task (if it's shared) or get denied (expected behavior)
-      expect(hasAccessDenied || page.url().includes("/tasks")).toBeTruthy();
-    }
-  });
-
-  test("admin can see all tasks", async ({ page }) => {
-    await testUtils.login(page, TEST_ACCOUNTS.ADMIN.email, TEST_ACCOUNTS.ADMIN.password);
-
-    await page.goto("/tasks");
-    await page.waitForLoadState("networkidle");
-
-    const taskCount = await page.locator('[data-testid="task-card"]').count();
-    expect(taskCount).toBeGreaterThan(0);
-
-    // Admin should be able to see tasks from all users
-    // Verify by checking task assignments include various staff members
-    const assignments = await page.evaluate(() => {
-      const cards = document.querySelectorAll('[data-testid="task-card"]');
-      return Array.from(cards).map((card) => 
-        (card as any).innerText
-      );
+    const activity = await testUtils.apiRequest(staffPage, {
+      url: "/api/tasks/global/activity?limit=5",
     });
-
-    console.log(`Admin sees ${assignments.length} tasks with various assignments`);
+    expect(activity.status).toBe(403);
   });
 
-  test("staff cannot delete other staff's time entries", async ({ page }) => {
-    // Create a task with Staff 1
-    await testUtils.login(page, TEST_ACCOUNTS.STAFF1.email, TEST_ACCOUNTS.STAFF1.password);
+  test("file downloads require authentication", async ({ authenticatedPage: page, browser }) => {
+    const created = await testUtils.createTask(page);
+    const upload = await testUtils.uploadAttachment(page, created.taskId);
+    const downloadPath =
+      (upload.payload as { download_url?: string }).download_url ??
+      (upload.body as { download_url?: string }).download_url;
+    expect(downloadPath).toBeTruthy();
 
-    await page.goto("/tasks");
-    await page.waitForLoadState("networkidle");
+    const downloadUrl = new URL(
+      downloadPath!,
+      page.url()
+    ).toString();
 
-    // Open first task
-    const firstTask = page.locator('[data-testid="task-card"]').first();
-    await firstTask.click();
-    await page.waitForLoadState("networkidle");
+    const unauthenticatedContext = await browser.newContext();
+    const unauthenticatedPage = await unauthenticatedContext.newPage();
+    const response = await unauthenticatedPage.goto(downloadUrl);
 
-    // Find task ID from URL
-    const taskIdMatch = page.url().match(/\/tasks\/([^/]+)/);
-    const taskId = taskIdMatch?.[1];
+    expect(response?.status()).toBe(401);
 
-    if (taskId) {
-      // Start timer
-      const playButton = page.locator('[data-testid="start-timer-btn"]');
-      if (await playButton.isVisible()) {
-        await playButton.click();
-        await page.waitForTimeout(2000); // Let it run for 2 seconds
-      }
-
-      // Stop timer to create entry
-      const stopButton = page.locator('[data-testid="stop-timer-btn"]');
-      if (await stopButton.isVisible()) {
-        await stopButton.click();
-        await page.waitForLoadState("networkidle");
-      }
-
-      // Get the created entry ID
-      const entryIdElement = page.locator('[data-testid="time-entry"]').first();
-      const entryId = await entryIdElement.getAttribute("data-entry-id");
-
-      if (entryId) {
-        // Logout Staff 1
-        await testUtils.logout(page);
-
-        // Login as Staff 2
-        await testUtils.login(page, TEST_ACCOUNTS.STAFF2.email, TEST_ACCOUNTS.STAFF2.password);
-
-        // Try to access the same task and delete the entry
-        await page.goto(`/tasks/${taskId}`);
-        await page.waitForLoadState("networkidle");
-
-        // Try to delete entry (should fail or be invisible)
-        const deleteButtons = page.locator('[data-testid="delete-entry-btn"]');
-        const count = await deleteButtons.count();
-
-        if (count > 0) {
-          // Try to delete
-          await deleteButtons.first().click();
-
-          // Should see error preventing deletion
-          const errorMsg = page.locator('[data-testid="error-message"]');
-          const hasError = await errorMsg.isVisible().catch(() => false);
-          
-          // Either error or deletion should be prevented
-          expect(hasError || count === 0).toBeTruthy();
-        }
-      }
-    }
-  });
-
-  test("file download requires authentication", async ({ page, context }) => {
-    // Get a file download URL from task (attach a file first)
-    await testUtils.login(page, TEST_ACCOUNTS.ADMIN.email, TEST_ACCOUNTS.ADMIN.password);
-
-    // Navigate to a task with attachments (or create one)
-    await page.goto("/tasks");
-    await page.waitForLoadState("networkidle");
-
-    const firstTask = page.locator('[data-testid="task-card"]').first();
-    await firstTask.click();
-    await page.waitForLoadState("networkidle");
-
-    // Try to find a file link
-    const fileLink = page.locator('[data-testid="file-download"]').first();
-    const isFileLinksVisible = await fileLink.isVisible().catch(() => false);
-
-    if (isFileLinksVisible) {
-      const href = await fileLink.getAttribute("href");
-
-      if (href && href.includes("/api/files")) {
-        // Now try to access this URL as unauthenticated user
-        // Create a new context without auth
-        const unauthContext = await context.browser()?.newContext();
-        const unauthPage = unauthContext ? await unauthContext.newPage() : null;
-
-        if (unauthPage) {
-          const response = await unauthPage.goto(href);
-
-          // Should be 401 or 403 (unauthorized)
-          const statusCode = response?.status();
-          expect([401, 403]).toContain(statusCode);
-
-          await unauthContext?.close();
-        }
-      }
-    }
-  });
-
-  test("staff cannot modify task status to bypass workflow", async ({ page }) => {
-    await testUtils.login(page, TEST_ACCOUNTS.STAFF1.email, TEST_ACCOUNTS.STAFF1.password);
-
-    await page.goto("/tasks");
-    await page.waitForLoadState("networkidle");
-
-    const firstTask = page.locator('[data-testid="task-card"]').first();
-    await firstTask.click();
-    await page.waitForLoadState("networkidle");
-
-    // Try to change task status (if staff has permission)
-    const statusDropdown = page.locator('[data-testid="task-status-select"]');
-    const isStatusEditable = await statusDropdown
-      .isEnabled()
-      .catch(() => false);
-
-    if (isStatusEditable) {
-      // Can edit status (expected for assignee)
-      await statusDropdown.click();
-
-      // Select a status
-      await page.locator('[data-testid="status-option-completed"]').click();
-      await page.waitForLoadState("networkidle");
-
-      // Verify it was changed
-      const currentStatus = await statusDropdown.inputValue();
-      expect(currentStatus).toBe("completed");
-    }
+    await unauthenticatedContext.close();
   });
 });

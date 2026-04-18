@@ -10,7 +10,7 @@ axiosRetry(axios, { retries: 3, retryDelay: axiosRetry.exponentialDelay });
 
 const LINE_MESSAGING_API = "https://api.line.me/v2/bot/message/push";
 const LINE_REPLY_API = "https://api.line.me/v2/bot/message/reply";
-const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+const LINE_TOKEN = process.env.LINE_CHANNEL_ACCESS_TOKEN || process.env.LINE_BOT_TOKEN;
 const LINE_ADMIN_USER_ID = process.env.LINE_ADMIN_USER_ID;
 
 function formatLineErrorPayload(payload: unknown): string {

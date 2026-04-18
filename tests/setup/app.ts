@@ -3,11 +3,11 @@ import cors from "cors";
 import helmet from "helmet";
 import { notFound, errorHandler } from "../../backend/src/middleware/error.middleware.js";
 import {
-  getNotifications,
-  getUnreadNotificationCount,
-  markRead,
-  markAllRead,
+  createNotificationHandlers,
+  type NotificationQueries,
 } from "../../backend/src/controllers/notification.controller.js";
+
+export type { NotificationQueries };
 
 export interface TestUser {
   id: string;
@@ -53,12 +53,19 @@ function createMockAuthMiddleware(testUsers: Map<string, TestUser>) {
   };
 }
 
+export interface CreateTestAppOptions {
+  /** Override notification query functions (e.g. in-memory mock for unit tests) */
+  notificationQueries?: NotificationQueries;
+}
+
 /**
- * Create Express app for testing
- * Uses mocked auth middleware instead of Firebase
+ * Create Express app for testing.
+ * Uses mocked auth middleware instead of Firebase.
+ * Pass notificationQueries to avoid hitting live Firestore.
  */
 export function createTestApp(
-  testUsers: Map<string, TestUser> = new Map()
+  testUsers: Map<string, TestUser> = new Map(),
+  options: CreateTestAppOptions = {}
 ): Express {
   const app = express();
 
@@ -79,18 +86,20 @@ export function createTestApp(
     },
   }));
 
-  // Mount notification routes with mock auth
   const mockAuthMiddleware = createMockAuthMiddleware(testUsers);
 
-  // Create notification router directly
-  const notificationRouter = express.Router();
+  // Build notification handlers — uses injected queries if provided, otherwise
+  // falls back to the real Firestore-backed implementations.
+  const {
+    getNotifications,
+    getUnreadNotificationCount,
+    markRead,
+    markAllRead,
+  } = createNotificationHandlers(options.notificationQueries);
 
+  const notificationRouter = express.Router();
   notificationRouter.get("/:userId", mockAuthMiddleware, getNotifications);
-  notificationRouter.get(
-    "/:userId/unread-count",
-    mockAuthMiddleware,
-    getUnreadNotificationCount
-  );
+  notificationRouter.get("/:userId/unread-count", mockAuthMiddleware, getUnreadNotificationCount);
   notificationRouter.patch("/:id/read", mockAuthMiddleware, markRead);
   notificationRouter.patch("/read-all/:userId", mockAuthMiddleware, markAllRead);
 
@@ -109,12 +118,13 @@ export interface TestAppFactory {
 }
 
 /**
- * Create a test app with user management
+ * Create a test app with user management.
+ * Pass options.notificationQueries to avoid live Firestore calls.
  */
-export function createTestAppFactory(): TestAppFactory {
+export function createTestAppFactory(options: CreateTestAppOptions = {}): TestAppFactory {
   const testUsers = new Map<string, TestUser>();
   return {
-    app: createTestApp(testUsers),
+    app: createTestApp(testUsers, options),
     testUsers,
   };
 }

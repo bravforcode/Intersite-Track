@@ -1,7 +1,7 @@
 rules_version = '2';
 //
-// Firestore Security Rules — Intersite Track
-// ============================================
+// Firestore Security Rules — TaskAm
+// ====================================
 // ALL client-side access is DENIED by default.
 // Every data operation MUST go through the Express backend (Firebase Admin SDK),
 // which bypasses these rules and enforces its own RBAC logic.
@@ -9,15 +9,23 @@ rules_version = '2';
 // If any collection is accidentally exposed in the future, these rules
 // ensure it cannot be read or written by the client directly.
 //
+// CRITICAL SECURITY: All user data and tasks are backend-protected.
+// No direct client access is permitted to prevent unauthorized exposure.
+//
+
 service cloud.firestore {
   match /databases/{database}/documents {
     // Allow users to read their own notifications for real-time updates
+    // SECURITY: Strict user_id matching prevents other users' data access
     match /notifications/{notificationId} {
-      allow read: if request.auth != null && request.auth.uid == resource.data.user_id;
-      allow write: if false; // All writes still go through backend
+      allow read: if request.auth != null
+                   && request.auth.uid == resource.data.user_id
+                   && resource.data.user_id != null;
+      allow write: if false; // All writes go through backend Admin SDK
     }
 
     // Lock down everything else. No client SDK read/write allowed.
+    // This is a critical security layer that cannot be bypassed by frontend code.
     match /{document=**} {
       allow read, write: if false;
     }

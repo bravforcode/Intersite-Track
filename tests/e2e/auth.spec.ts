@@ -1,129 +1,98 @@
-/**
- * E2E Test: Authentication Flow
- * Tests: Login, Signup, Password change, Session management
- */
-
 import { test, expect, testUtils, TEST_ACCOUNTS } from "./fixtures";
 
 test.describe("Authentication", () => {
-  test("should login with valid credentials", async ({ page }) => {
-    await page.goto("/");
-
-    // Fill login form
-    await page.fill('input[type="email"]', TEST_ACCOUNTS.ADMIN.email);
-    await page.fill('input[type="password"]', TEST_ACCOUNTS.ADMIN.password);
-
-    // Submit
-    const responsePromise = page.waitForResponse(
-      (response) => response.url().includes("/api/auth/") && response.status() === 200
-    );
-    await page.click('button[type="submit"]');
-
-    // Verify successful response
-    const response = await responsePromise;
-    expect(response.ok()).toBeTruthy();
-
-    // Verify navigation to dashboard
-    await page.waitForURL("**/dashboard", { timeout: 10000 });
-    expect(page.url()).toContain("/dashboard");
-  });
-
-  test("should reject invalid credentials", async ({ page }) => {
-    await page.goto("/");
-
-    await page.fill('input[type="email"]', "invalid@test.com");
-    await page.fill('input[type="password"]', "wrongpassword");
-
-    await page.click('button[type="submit"]');
-
-    // Look for error message
-    const errorMessage = page.locator('[data-testid="login-error"]');
-    await expect(errorMessage).toBeVisible({ timeout: 5000 });
-  });
-
-  test("should store user profile in session", async ({ page }) => {
+  test("logs in with valid credentials and stores the user profile", async ({ page }) => {
     await testUtils.login(page, TEST_ACCOUNTS.ADMIN.email, TEST_ACCOUNTS.ADMIN.password);
 
-    const userProfile = await page.evaluate(() => {
-      const user = sessionStorage.getItem("user");
-      return user ? JSON.parse(user) : null;
-    });
+    const userProfile = await testUtils.getSessionUser(page);
 
     expect(userProfile).toBeTruthy();
     expect(userProfile.email).toBe(TEST_ACCOUNTS.ADMIN.email);
     expect(userProfile.role).toBe("admin");
+    expect(page.url()).toMatch(/\/$/);
   });
 
-  test("should persist session on page reload", async ({ page }) => {
+  test("rejects invalid credentials", async ({ page }) => {
+    await page.goto("/");
+    await page.locator('input[type="email"]').fill("invalid@taskam.local");
+    await page.locator('input[type="password"]').fill("wrong-password");
+    await page.getByRole("button", { name: "เข้าสู่ระบบ" }).click({ noWaitAfter: true });
+
+    await expect(
+      page.getByText(/อีเมลหรือรหัสผ่านไม่ถูกต้อง|พยายามเข้าสู่ระบบบ่อยเกินไป/)
+    ).toBeVisible({
+      timeout: 10_000,
+    });
+  });
+
+  test("persists the authenticated session after reload", async ({ page }) => {
     await testUtils.login(page, TEST_ACCOUNTS.ADMIN.email, TEST_ACCOUNTS.ADMIN.password);
 
-    // Get user profile before reload
-    const profileBefore = await page.evaluate(() => sessionStorage.getItem("user"));
-
-    // Reload page
     await page.reload();
-
-    // Check if still logged in and profile persists
-    await page.waitForURL("**/dashboard", { timeout: 5000 });
-    const profileAfter = await page.evaluate(() => sessionStorage.getItem("user"));
-
-    expect(profileAfter).toBe(profileBefore);
+    await testUtils.waitForAuthenticatedShell(page);
+    await expect(page.getByRole("heading", { name: "แดชบอร์ด" })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.locator('input[type="email"]')).toHaveCount(0);
   });
 
-  test("should logout successfully", async ({ page }) => {
+  test("logs out and clears the session cache", async ({ page }) => {
     await testUtils.login(page, TEST_ACCOUNTS.ADMIN.email, TEST_ACCOUNTS.ADMIN.password);
+    await testUtils.logout(page);
 
-    // Find and click logout button
-    await page.click('[data-testid="user-menu"]');
-    await page.click('[data-testid="logout-btn"]');
-
-    // Verify redirected to login
-    await page.waitForURL("**/login", { timeout: 5000 });
-    expect(page.url()).toContain("/login");
-
-    // Verify session cleared
-    const user = await page.evaluate(() => sessionStorage.getItem("user"));
-    expect(user).toBeNull();
+    const userProfile = await testUtils.getSessionUser(page);
+    expect(userProfile).toBeNull();
   });
 
-  test("should require reauthentication for password change", async ({ page }) => {
+  test("blocks weak passwords in signup before hitting the backend", async ({ page }) => {
+    await page.goto("/");
+    await testUtils.waitForCorrectApp(page);
+    await page.getByRole("button", { name: "สร้างบัญชีใหม่" }).click({ force: true, noWaitAfter: true });
+
+    const email = `playwright-${Date.now()}@taskam.local`;
+    const signupForm = page.locator("form").filter({
+      has: page.getByRole("button", { name: /^สร้างบัญชี$/ }),
+    });
+    await expect(signupForm).toBeVisible({ timeout: 10_000 });
+
+    const signupEmail = signupForm.locator('input[type="email"]');
+    const signupPassword = signupForm.locator('input[autocomplete="new-password"]').first();
+    const signupConfirmPassword = signupForm.locator('input[autocomplete="new-password"]').nth(1);
+
+    await signupEmail.fill(email);
+    await expect(signupEmail).toHaveValue(email);
+    await signupPassword.fill("weakpass123");
+    await signupConfirmPassword.fill("weakpass123");
+    await page.getByRole("button", { name: "สร้างบัญชี" }).click();
+
+    await expect(page.getByText("รหัสผ่านต้องมีตัวพิมพ์ใหญ่อย่างน้อย 1 ตัว")).toBeVisible({
+      timeout: 10_000,
+    });
+  });
+
+  test("blocks weak passwords in the profile password-change flow", async ({ page }) => {
     await testUtils.login(page, TEST_ACCOUNTS.ADMIN.email, TEST_ACCOUNTS.ADMIN.password);
+    await testUtils.openProfile(page, TEST_ACCOUNTS.ADMIN.displayName);
+    const profileDialog = page.getByRole("dialog", { name: "โปรไฟล์" });
+    await expect(profileDialog).toBeVisible({ timeout: 10_000 });
+    await profileDialog.getByRole("button", { name: "เปลี่ยนรหัสผ่าน" }).first().click({
+      force: true,
+      noWaitAfter: true,
+    });
+    await expect(profileDialog.locator('input[type="password"]').first()).toBeVisible({
+      timeout: 10_000,
+    });
 
-    // Navigate to password change
-    await page.goto("/settings/password");
+    await profileDialog.locator('input[type="password"]').first().fill(TEST_ACCOUNTS.ADMIN.password);
+    await profileDialog.locator('input[type="password"]').nth(1).fill("alllowercase123");
+    await profileDialog.locator('input[type="password"]').nth(2).fill("alllowercase123");
+    await profileDialog
+      .locator("form")
+      .getByRole("button", { name: "เปลี่ยนรหัสผ่าน" })
+      .click({ force: true, noWaitAfter: true });
 
-    // Try to change without current password
-    await page.fill('[name="new_password"]', "NewPass@123456");
-    await page.fill('[name="confirm_password"]', "NewPass@123456");
-    await page.click('button[type="submit"]');
-
-    // Should show error asking for current password
-    const errorMessage = page.locator('[data-testid="current-password-error"]');
-    await expect(errorMessage).toBeVisible({ timeout: 5000 });
-
-    // Fill current password
-    await page.fill('[name="current_password"]', TEST_ACCOUNTS.ADMIN.password);
-    await page.click('button[type="submit"]');
-
-    // Should succeed
-    const successMessage = page.locator('[data-testid="password-change-success"]');
-    await expect(successMessage).toBeVisible({ timeout: 5000 });
-  });
-
-  test("should enforce password complexity requirements", async ({ page }) => {
-    await page.goto("/signup");
-
-    const testCases = [
-      { password: "short", error: "at least 8 characters" },
-      { password: "nouppercase123", error: "uppercase" },
-      { password: "NOLOWERCASE123", error: "lowercase" },
-      { password: "NoNumbers", error: "number" },
-    ];
-
-    for (const { password, error } of testCases) {
-      await page.fill('input[name="password"]', password);
-      const helpText = page.locator('text=' + error);
-      await expect(helpText).toBeVisible({ timeout: 3000 });
-    }
+    await expect(page.getByText("รหัสผ่านต้องมีตัวพิมพ์ใหญ่อย่างน้อย 1 ตัว")).toBeVisible({
+      timeout: 10_000,
+    });
   });
 });

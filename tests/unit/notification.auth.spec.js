@@ -1,33 +1,88 @@
+/**
+ * Notification Authorization Tests
+ *
+ * Uses an in-memory store instead of live Firestore so the tests are fully
+ * isolated from external services (and don't consume Firestore quota).
+ *
+ * The real notification controller logic is tested via createNotificationHandlers()
+ * (dependency injection) — the authorization rules are exercised exactly as in
+ * production, but with an in-memory query layer wired up here.
+ */
+
 import assert from "node:assert/strict";
 import { describe, it, before, after } from "node:test";
 import request from "supertest";
-import { db } from "../../backend/src/config/firebase-admin.js";
 import { createTestAppFactory } from "../setup/app.js";
 
-// Test user IDs
+// ─── In-memory notification store ────────────────────────────────────────────
+const notificationStore = new Map();
+let _idSeed = 0;
+
+function addNotification(data) {
+  const id = `mock-notif-${++_idSeed}`;
+  notificationStore.set(id, { id, ...data });
+  return id;
+}
+
+// Injected query implementations (no Firestore required)
+const mockQueries = {
+  getNotificationsByUser: async (userId) =>
+    Array.from(notificationStore.values())
+      .filter((n) => n.user_id === userId)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 50),
+
+  getNotificationById: async (id) => {
+    const n = notificationStore.get(id);
+    if (!n) {
+      const err = new Error(`Notification not found: ${id}`);
+      err.statusCode = 404;
+      throw err;
+    }
+    return n;
+  },
+
+  getUnreadCount: async (userId) =>
+    Array.from(notificationStore.values()).filter(
+      (n) => n.user_id === userId && n.is_read === 0
+    ).length,
+
+  markNotificationRead: async (id) => {
+    const n = notificationStore.get(id);
+    if (n) notificationStore.set(id, { ...n, is_read: 1 });
+  },
+
+  markAllNotificationsRead: async (userId) => {
+    for (const [id, n] of notificationStore.entries()) {
+      if (n.user_id === userId && n.is_read === 0) {
+        notificationStore.set(id, { ...n, is_read: 1 });
+      }
+    }
+  },
+};
+
+// ─── Test constants ───────────────────────────────────────────────────────────
 const testUserId1 = "test-user-auth-1";
 const testUserId2 = "test-user-auth-2";
 const testAdminId = "test-admin-auth-1";
 
-// Tokens
-const token1 = "test-token-1"; // for testUserId1
-const token2 = "test-token-2"; // for testUserId2
-const adminToken = "test-admin-token"; // for admin user
+const token1 = "test-token-1";
+const token2 = "test-token-2";
+const adminToken = "test-admin-token";
 
-// Test notification IDs (will be set after creation)
 let testNotificationId1;
 let testNotificationId2;
 
+// ─── Tests ────────────────────────────────────────────────────────────────────
 describe("Notification Authorization", () => {
   let appFactory;
   let app;
 
-  before(async () => {
-    // Create test app factory with mock auth
-    appFactory = createTestAppFactory();
+  before(() => {
+    // Build the app with injected in-memory queries (no Firestore connection)
+    appFactory = createTestAppFactory({ notificationQueries: mockQueries });
     app = appFactory.app;
 
-    // Register test users
     appFactory.testUsers.set(token1, {
       id: testUserId1,
       userId: testUserId1,
@@ -70,8 +125,8 @@ describe("Notification Authorization", () => {
       created_at: new Date().toISOString(),
     });
 
-    // Create test notifications
-    const ref1 = await db.collection("notifications").add({
+    // Seed in-memory store (no Firestore)
+    testNotificationId1 = addNotification({
       user_id: testUserId1,
       title: "Test Notification 1",
       message: "Message 1",
@@ -80,9 +135,8 @@ describe("Notification Authorization", () => {
       is_read: 0,
       created_at: new Date().toISOString(),
     });
-    testNotificationId1 = ref1.id;
 
-    const ref2 = await db.collection("notifications").add({
+    testNotificationId2 = addNotification({
       user_id: testUserId2,
       title: "Test Notification 2",
       message: "Message 2",
@@ -91,13 +145,11 @@ describe("Notification Authorization", () => {
       is_read: 0,
       created_at: new Date().toISOString(),
     });
-    testNotificationId2 = ref2.id;
   });
 
-  after(async () => {
-    // Clean up test notifications
-    await db.collection("notifications").doc(testNotificationId1).delete();
-    await db.collection("notifications").doc(testNotificationId2).delete();
+  after(() => {
+    notificationStore.delete(testNotificationId1);
+    notificationStore.delete(testNotificationId2);
   });
 
   describe("GET /api/notifications/:userId", () => {
@@ -108,8 +160,9 @@ describe("Notification Authorization", () => {
         .expect(200);
 
       assert.ok(Array.isArray(res.body), "Response should be an array");
-      // User should see at least their own notification
-      const ownNotification = res.body.find((n) => n.id === testNotificationId1);
+      const ownNotification = res.body.find(
+        (n) => n.id === testNotificationId1
+      );
       assert.ok(ownNotification, "User should see their own notification");
       assert.strictEqual(ownNotification.user_id, testUserId1);
     });
@@ -141,29 +194,29 @@ describe("Notification Authorization", () => {
         .expect(200);
 
       assert.deepStrictEqual(res.body, { success: true });
-
-      // Verify notification was marked as read
-      const notification = await db
-        .collection("notifications")
-        .doc(testNotificationId1)
-        .get();
-      assert.strictEqual(notification.data().is_read, 1);
+      assert.strictEqual(
+        notificationStore.get(testNotificationId1).is_read,
+        1,
+        "Notification should be marked as read"
+      );
     });
 
     it("should deny user PATCH other user's notification (403)", async () => {
+      // Ensure testNotificationId2 starts as unread for this check
+      const n2 = notificationStore.get(testNotificationId2);
+      notificationStore.set(testNotificationId2, { ...n2, is_read: 0 });
+
       const res = await request(app)
         .patch(`/api/notifications/${testNotificationId2}/read`)
         .set("Authorization", `Bearer ${token1}`)
         .expect(403);
 
       assert.deepStrictEqual(res.body, { error: "Forbidden" });
-
-      // Verify notification was NOT marked as read
-      const notification = await db
-        .collection("notifications")
-        .doc(testNotificationId2)
-        .get();
-      assert.strictEqual(notification.data().is_read, 0);
+      assert.strictEqual(
+        notificationStore.get(testNotificationId2).is_read,
+        0,
+        "Notification should NOT be marked as read"
+      );
     });
 
     it("should allow admin PATCH any notification (200)", async () => {
@@ -173,13 +226,11 @@ describe("Notification Authorization", () => {
         .expect(200);
 
       assert.deepStrictEqual(res.body, { success: true });
-
-      // Verify notification was marked as read
-      const notification = await db
-        .collection("notifications")
-        .doc(testNotificationId2)
-        .get();
-      assert.strictEqual(notification.data().is_read, 1);
+      assert.strictEqual(
+        notificationStore.get(testNotificationId2).is_read,
+        1,
+        "Notification should be marked as read"
+      );
     });
   });
 });

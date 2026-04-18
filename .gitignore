@@ -13,6 +13,7 @@ coverage/
 
 # Vercel
 .vercel
+.vercel-prod-check.env
 
 # OS files
 .DS_Store

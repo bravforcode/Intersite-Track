@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { motion } from "motion/react";
 import { userService } from "../../services/userService";
+import { PASSWORD_REQUIREMENTS_HINT, validatePassword } from "../../utils/validators";
 import type { User, Department } from "../../types";
 
 interface UserFormModalProps {
@@ -55,6 +56,8 @@ export function UserFormModal({ user, onClose, onSave }: UserFormModalProps) {
       } else {
         if (!form.email) { setError("กรุณากรอกอีเมล"); setSaving(false); return; }
         if (!form.password) { setError("กรุณากรอกรหัสผ่าน"); setSaving(false); return; }
+        const passwordError = validatePassword(form.password);
+        if (passwordError) { setError(passwordError); setSaving(false); return; }
         await userService.createUser({ ...payload, email: form.email, password: form.password });
       }
       onSave();
@@ -105,6 +108,7 @@ export function UserFormModal({ user, onClose, onSave }: UserFormModalProps) {
                 <input type="password" className="w-full px-4 py-2 rounded-xl app-field"
                   placeholder="อย่างน้อย 8 ตัวอักษร"
                   value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+                <p className="mt-2 text-xs app-soft">{PASSWORD_REQUIREMENTS_HINT}</p>
               </div>
             </>
           )}

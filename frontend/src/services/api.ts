@@ -24,5 +24,6 @@ const client = createApiClient({ authClient: firebaseSessionClient });
 export const api = client.api;
 export const setCachedAccessToken = client.setCachedAccessToken;
 export const clearApiAuthState = client.clearApiAuthState;
+export const setCachedCsrfToken = client.setCachedCsrfToken;
 
 export default api;

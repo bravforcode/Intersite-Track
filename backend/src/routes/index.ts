@@ -16,6 +16,8 @@ import timeEntryRoutes from "./timeEntry.routes.js";
 import kpiRoutes from "./kpi.routes.js";
 import templateRoutes from "./template.routes.js";
 import taskGraphRoutes from "./taskGraph.routes.js";
+import fileRoutes from "./file.routes.js";
+import cronRoutes from "./cron.routes.js";
 import { requireAuth, requireRole } from "../middleware/auth.middleware.js";
 
 const router = Router();
@@ -27,6 +29,8 @@ router.use("/projects", projectRoutes);
 router.use("/departments", departmentRoutes);
 router.use("/task-types", taskTypeRoutes);
 router.use("/notifications", notificationRoutes);
+router.use("/cron", cronRoutes);
+router.use("/files", fileRoutes);
 router.use("/reports", reportRoutes);
 router.use("/stats", reportRoutes);
 router.use("/trello", trelloRoutes);

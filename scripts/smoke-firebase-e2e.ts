@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import dotenv from "dotenv";
-import { adminAuth, db } from "../server/config/firebase-admin.js";
+import { adminAuth, db } from "../backend/src/config/firebase-admin.js";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 
 type HeadersMap = Record<string, string>;
 type Json = Record<string, unknown>;
+type CsrfSession = { token: string; cookie: string };
 
 const args = process.argv.slice(2);
 const cleanupOnly = args.includes("--cleanup-only");
@@ -24,6 +25,7 @@ const adminEmail = `api.smoke.admin.${runId}@taskam.local`;
 
 const createdDocs = new Map<string, string[]>();
 const createdUserIds = new Set<string>();
+let csrfSession: CsrfSession | null = null;
 
 function getArg(flag: string): string | undefined {
   const index = args.indexOf(flag);
@@ -42,12 +44,21 @@ function trackUser(id: string | undefined): void {
   if (id) createdUserIds.add(id);
 }
 
-async function fetchJson(method: string, url: string, options: { token?: string; body?: unknown; expected?: number } = {}) {
+async function fetchJson(
+  method: string,
+  url: string,
+  options: { token?: string; body?: unknown; expected?: number | number[] } = {}
+) {
   const headers: HeadersMap = {};
   if (options.token) headers.authorization = `Bearer ${options.token}`;
   if (options.body !== undefined) headers["content-type"] = "application/json";
+  const csrf = await getCsrfSession();
+  if (requiresCsrf(method)) {
+    headers["x-csrf-token"] = csrf.token;
+    headers.cookie = csrf.cookie;
+  }
 
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(url, {
     method,
     headers,
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
@@ -57,7 +68,14 @@ async function fetchJson(method: string, url: string, options: { token?: string;
   const json = text ? safeParseJson(text) : null;
 
   if (options.expected !== undefined) {
-    assert.equal(response.status, options.expected, `${method} ${url} returned ${response.status}: ${text}`);
+    if (Array.isArray(options.expected)) {
+      assert.ok(
+        options.expected.includes(response.status),
+        `${method} ${url} returned ${response.status}: ${text}`
+      );
+    } else {
+      assert.equal(response.status, options.expected, `${method} ${url} returned ${response.status}: ${text}`);
+    }
   } else {
     assert.ok(response.ok, `${method} ${url} returned ${response.status}: ${text}`);
   }
@@ -76,8 +94,13 @@ function safeParseJson(text: string): unknown {
 async function fetchRaw(method: string, url: string, options: { token?: string; expected?: number } = {}) {
   const headers: HeadersMap = {};
   if (options.token) headers.authorization = `Bearer ${options.token}`;
+  const csrf = await getCsrfSession();
+  if (requiresCsrf(method)) {
+    headers["x-csrf-token"] = csrf.token;
+    headers.cookie = csrf.cookie;
+  }
 
-  const response = await fetch(url, { method, headers });
+  const response = await fetchWithRetry(url, { method, headers });
   const buffer = Buffer.from(await response.arrayBuffer());
 
   if (options.expected !== undefined) {
@@ -87,6 +110,36 @@ async function fetchRaw(method: string, url: string, options: { token?: string; 
   }
 
   return { status: response.status, headers: response.headers, buffer };
+}
+
+function requiresCsrf(method: string): boolean {
+  const normalized = method.toUpperCase();
+  return !["GET", "HEAD", "OPTIONS"].includes(normalized);
+}
+
+async function getCsrfSession(forceRefresh: boolean = false): Promise<CsrfSession> {
+  if (!forceRefresh && csrfSession) return csrfSession;
+
+  const response = await fetchWithRetry(`${baseUrl}/api/csrf-token`, {
+    method: "GET",
+  });
+  const tokenHeader =
+    response.headers.get("x-csrf-token") ??
+    response.headers.get("X-CSRF-Token") ??
+    "";
+  const cookieHeader = response.headers.get("set-cookie") ?? "";
+  const csrfCookie = cookieHeader.split(",").find((segment) => segment.includes("csrf-token=")) ?? cookieHeader;
+  const cookieValue = csrfCookie.split(";")[0]?.trim();
+
+  assert.equal(response.status, 200, `GET ${baseUrl}/api/csrf-token returned ${response.status}`);
+  assert.ok(tokenHeader, "Missing x-csrf-token header from /api/csrf-token");
+  assert.ok(cookieValue.startsWith("csrf-token="), `Missing csrf-token cookie from /api/csrf-token: ${cookieHeader}`);
+
+  csrfSession = {
+    token: tokenHeader,
+    cookie: cookieValue,
+  };
+  return csrfSession;
 }
 
 async function createUserDirect(email: string, role: "admin" | "staff") {
@@ -113,9 +166,14 @@ async function createUserDirect(email: string, role: "admin" | "staff") {
 }
 
 async function signupOrProvision(email: string, role: "admin" | "staff") {
-  const response = await fetch(`${baseUrl}/api/auth/signup`, {
+  const csrf = await getCsrfSession();
+  const response = await fetchWithRetry(`${baseUrl}/api/auth/signup`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      "x-csrf-token": csrf.token,
+      cookie: csrf.cookie,
+    },
     body: JSON.stringify({ email, password }),
   });
 
@@ -137,7 +195,7 @@ async function signupOrProvision(email: string, role: "admin" | "staff") {
 }
 
 async function signIn(email: string) {
-  const response = await fetch(
+  const response = await fetchWithRetry(
     `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`,
     {
       method: "POST",
@@ -157,6 +215,29 @@ async function signIn(email: string) {
     uid: String(json.localId),
     token: String(json.idToken),
   };
+}
+
+function isRetryableNetworkError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const cause = (error as Error & { cause?: NodeJS.ErrnoException }).cause;
+  const code = cause?.code;
+  return code === "ECONNRESET" || code === "ECONNREFUSED" || code === "ETIMEDOUT" || code === "EPIPE";
+}
+
+async function fetchWithRetry(url: string, init: RequestInit, retries: number = 3): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    try {
+      return await fetch(url, init);
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableNetworkError(error) || attempt >= retries) {
+        throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
+    }
+  }
+  throw lastError;
 }
 
 async function cleanupSmokeUsersAndArtifacts(): Promise<void> {
@@ -373,7 +454,7 @@ async function main() {
     body: {
       title: `[SMOKE] Milestone ${runId}`,
       description: "milestone",
-      due_date: "2026-12-31",
+      due_date: "2026-12-31T00:00:00.000Z",
     },
     expected: 200,
   });
@@ -425,12 +506,12 @@ async function main() {
       task_type_id: taskTypeId,
       priority: "high",
       status: "pending",
-      due_date: "2026-12-31",
+      due_date: "2026-12-31T00:00:00.000Z",
       created_by: createdAdmin.id,
       assigned_user_ids: [createdStaff.id],
       project_id: projectId,
     },
-    expected: 200,
+    expected: [200, 201],
   });
   const taskId = String((createdTask.json as Json).id);
   trackDoc("tasks", taskId);
@@ -446,7 +527,7 @@ async function main() {
       task_type_id: taskTypeId,
       priority: "urgent",
       status: "in_progress",
-      due_date: "2026-12-31",
+      due_date: "2026-12-31T00:00:00.000Z",
       assigned_user_ids: [createdStaff.id, createdAdmin.id],
       project_id: projectId,
     },

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { logger } from "../utils/logger.js";
+import { logAuditEvent, AuditEventType, AuditSeverity } from "../utils/auditLogger.js";
 
 export interface AppError extends Error {
   statusCode?: number;
@@ -31,6 +32,31 @@ export function errorHandler(
       stack: err.stack,
       user: req.user?.id
     });
+
+    // SECURITY: Log to audit trail for security-relevant errors (5xx, 401, 403)
+    const isServerError = statusCode >= 500;
+    const isSecurityError = statusCode === 401 || statusCode === 403;
+
+    if (isServerError || isSecurityError) {
+      logAuditEvent(
+        {
+          eventType: AuditEventType.API_ERROR,
+          severity: isServerError ? AuditSeverity.CRITICAL : AuditSeverity.WARNING,
+          userId: req.user?.id,
+          username: req.user?.username,
+          userRole: req.user?.role,
+          action: `${req.method} ${req.path}`,
+          resource: "API",
+          resourceId: req.path,
+          status: "FAILURE",
+          statusCode,
+          errorMessage: err.message,
+        },
+        req
+      ).catch((auditErr) => {
+        process.stderr.write(`[AUDIT] Audit logging failed: ${auditErr}\n`);
+      });
+    }
   } catch {
     // Ignore logging errors (e.g. read-only filesystem on Vercel)
     process.stderr.write(`[ERROR] ${err.message}\n`);

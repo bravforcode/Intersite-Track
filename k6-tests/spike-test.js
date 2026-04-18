@@ -19,21 +19,25 @@ export const options = {
 };
 
 export default function () {
-  // URL เป้าหมาย (เปลี่ยนเป็น URL จริงของ livecity หรือ API Localhost)
-  const url = 'http://localhost:3000/api/locations';
+  const baseUrl = (__ENV.K6_BASE_URL || 'http://localhost:3694').replace(/\/$/, '');
+  const bearerToken = __ENV.K6_BEARER_TOKEN;
 
-  // จำลอง Payload (ถ้าเป็นการ POST)
-  // const payload = JSON.stringify({ lat: 13.7563, lng: 100.5018 });
-  // const params = { headers: { 'Content-Type': 'application/json' } };
-
-  // ยิง Request
-  const res = http.get(url); // หรือ http.post(url, payload, params);
-
-  // ตรวจสอบผลลัพธ์ (Check)
-  check(res, {
-    'status is 200': (r) => r.status === 200,
-    'data is not empty': (r) => r.body.length > 0,
+  const health = http.get(`${baseUrl}/api/health`);
+  check(health, {
+    'health status is 200': (r) => r.status === 200,
   });
+
+  if (bearerToken) {
+    const workspace = http.get(`${baseUrl}/api/tasks/workspace`, {
+      headers: {
+        Authorization: `Bearer ${bearerToken}`,
+      },
+    });
+
+    check(workspace, {
+      'workspace status < 400': (r) => r.status > 0 && r.status < 400,
+    });
+  }
 
   // พักหายใจ 1 วินาที ก่อนยิงใหม่ (จำลองพฤติกรรมคนจริง)
   sleep(1);

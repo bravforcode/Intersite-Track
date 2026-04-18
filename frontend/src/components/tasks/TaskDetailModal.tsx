@@ -214,7 +214,7 @@ export function TaskDetailModal({ task, user, onClose, onUpdate, onEdit }: TaskD
       let attachUrl: string | undefined;
       if (imageFile) {
         setUploading(true);
-        attachUrl = await taskService.uploadImage(imageFile);
+        attachUrl = await taskService.uploadImage(task.id, imageFile);
         setUploading(false);
       }
 

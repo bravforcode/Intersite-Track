@@ -3,6 +3,7 @@ import { Link2, X } from "lucide-react";
 import { motion } from "motion/react";
 import { authService } from "../../services/authService";
 import { userService } from "../../services/userService";
+import { PASSWORD_REQUIREMENTS_HINT, validatePassword } from "../../utils/validators";
 import type { User } from "../../types";
 
 interface ProfileModalProps {
@@ -60,6 +61,11 @@ export function ProfileModal({ user, onClose, onSave, onOpenLineLink }: ProfileM
       setError("รหัสผ่านใหม่ไม่ตรงกัน");
       return;
     }
+    const passwordError = validatePassword(pwForm.new_password);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
     setSaving(true);
     setError("");
     setSuccess("");
@@ -84,6 +90,9 @@ export function ProfileModal({ user, onClose, onSave, onOpenLineLink }: ProfileM
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-label="โปรไฟล์"
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         className="bg-white/95 rounded-4xl shadow-[0_28px_70px_rgba(37,99,235,0.16)] ring-1 ring-sky-100 w-full max-w-lg overflow-hidden"
@@ -203,6 +212,7 @@ export function ProfileModal({ user, onClose, onSave, onOpenLineLink }: ProfileM
                 onChange={(e) => setPwForm({ ...pwForm, new_password: e.target.value })}
                 required
               />
+              <p className="mt-2 text-xs text-slate-500">{PASSWORD_REQUIREMENTS_HINT}</p>
             </div>
             <div>
               <label className="block text-xs font-bold uppercase text-gray-400 mb-1">ยืนยันรหัสผ่านใหม่</label>

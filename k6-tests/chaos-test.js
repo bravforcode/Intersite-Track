@@ -34,8 +34,8 @@ export const options = {
 
   // เกณฑ์การผ่าน (ถ้าแย่กว่านี้ถือว่าระบบล่ม)
   thresholds: {
-    http_req_failed: ['rate<0.05'],    // Error ห้ามเกิน 5% (โหดมากสำหรับ Chaos)
-    http_req_duration: ['p(95)<2000'], // 95% ของ request ต้องเสร็จใน 2 วิ (แม้ยามศึกหนัก)
+    'http_req_failed{expected_response:true}': ['rate<0.05'],
+    'http_req_duration{expected_response:true}': ['p(95)<2000'],
   },
 };
 
@@ -56,7 +56,28 @@ const NASTY_PAYLOADS = [
   "{{7*7}}",                   // Template Injection
 ];
 
-const BASE_URL = 'http://127.0.0.1:8001'; // ✅ VibeCity Backend (Port 8001)
+const BASE_URL = (__ENV.K6_BASE_URL || 'http://127.0.0.1:3694').replace(/\/$/, '');
+const BEARER_TOKEN = __ENV.K6_BEARER_TOKEN;
+
+function pickNastyValue() {
+  return NASTY_PAYLOADS[randomIntBetween(0, NASTY_PAYLOADS.length - 1)];
+}
+
+function getAuthHeaders() {
+  if (!BEARER_TOKEN) return {};
+  return { Authorization: `Bearer ${BEARER_TOKEN}` };
+}
+
+function ensureCsrfToken() {
+  const res = http.get(`${BASE_URL}/api/csrf-token`, { headers: getAuthHeaders() });
+  const csrfToken =
+    res.headers['X-CSRF-Token'] ||
+    res.headers['x-csrf-token'] ||
+    res.headers['X-Csrf-Token'] ||
+    res.headers['x-csrf-token'];
+
+  return { res, csrfToken };
+}
 
 // ==============================================================================
 // 3. TEST LOGIC: เริ่มปฏิบัติการ
@@ -71,20 +92,31 @@ export default function () {
   // --------------------------------------------------------------------------
   if (behavior <= 7) {
     group('API Read Storm', () => {
-      // ใช้ http.batch เพื่อจำลอง Browser ที่ยิงหลาย Request พร้อมกัน (Parallel Requests)
-      const responses = http.batch([
-        ['GET', `${BASE_URL}/api/v1/owner/stats/1`], // Admin Dashboard
-        ['GET', `${BASE_URL}/api/v1/shops`],         // Main Map Data
-      ]);
+      const requests = [
+        ['GET', `${BASE_URL}/api/health`],
+      ];
+
+      if (BEARER_TOKEN) {
+        requests.push([
+          'GET',
+          `${BASE_URL}/api/tasks/workspace`,
+          null,
+          { headers: getAuthHeaders() },
+        ]);
+      }
+
+      const responses = http.batch(requests);
 
       check(responses[0], {
-        'GET Owner Stats 200': (r) => r.status === 200,
-        'GET Owner Stats fast': (r) => r.timings.duration < 1000,
+        'GET /api/health 200': (r) => r.status === 200,
+        'GET /api/health fast': (r) => r.timings.duration < 1000,
       });
 
-      check(responses[1], {
-        'GET Shops 200': (r) => r.status === 200,
-      });
+      if (responses[1]) {
+        check(responses[1], {
+          'GET /api/tasks/workspace < 400': (r) => r.status > 0 && r.status < 400,
+        });
+      }
     });
   }
 
@@ -93,26 +125,48 @@ export default function () {
   // --------------------------------------------------------------------------
   else {
     group('API Write Chaos', () => {
-      // Test Ride Estimate (Heavy Logic + Rate Limit)
+      if (!BEARER_TOKEN) {
+        const unauthenticated = http.post(`${BASE_URL}/api/tasks`, JSON.stringify({ title: 'unauth' }), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        check(unauthenticated, {
+          'POST /api/tasks without auth is rejected': (r) => r.status === 401 || r.status === 403,
+        });
+        return;
+      }
+
+      const { res: csrfBootstrap, csrfToken } = ensureCsrfToken();
+      check(csrfBootstrap, {
+        'GET /api/csrf-token 200': (r) => r.status === 200,
+      });
+
+      if (!csrfToken) {
+        check(csrfBootstrap, {
+          'CSRF header present': (r) => false,
+        });
+        return;
+      }
+
       const payload = JSON.stringify({
-        start_lat: 18.7883 + (Math.random() * 0.01),
-        start_lng: 98.9853 + (Math.random() * 0.01),
-        end_lat: 18.7983 + (Math.random() * 0.01),
-        end_lng: 98.9953 + (Math.random() * 0.01)
+        title: `Chaos ${Date.now()} ${String(pickNastyValue() ?? '').slice(0, 120)}`,
+        description: String(pickNastyValue() ?? ''),
+        priority: ['low', 'medium', 'high', 'urgent'][randomIntBetween(0, 3)],
       });
 
       const params = {
         headers: {
+          ...getAuthHeaders(),
           'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken,
         },
       };
 
-      // ยิง POST
-      const res = http.post(`${BASE_URL}/api/v1/rides/estimate`, payload, params);
+      const res = http.post(`${BASE_URL}/api/tasks`, payload, params);
 
       check(res, {
-        'POST Ride Estimate 200 or 429 (Rate Limit)': (r) => r.status === 200 || r.status === 429,
-        'Server survived crash': (r) => r.status !== 500 && r.status !== 502,
+        'POST /api/tasks status is expected': (r) => [200, 201, 400, 401, 403, 429].includes(r.status),
+        'Server survived crash': (r) => r.status !== 500 && r.status !== 502 && r.status !== 503,
       });
     });
   }

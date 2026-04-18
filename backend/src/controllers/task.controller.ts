@@ -94,8 +94,8 @@ export async function getTasksWorkspace(req: Request, res: Response, next: NextF
   try {
     const { limit, offset } = parsePaginationParams(req.query);
     
-    // Build filters
-    const filters = {
+    // Build filters — explicit type preserves index signature lost by spread inference
+    const filters: Record<string, string | undefined> = {
       ...(req.query as Record<string, string>),
       ...(req.user?.role === "staff" ? { user_id: String(req.user.id) } : {}),
     };
@@ -184,7 +184,8 @@ export async function getTask(req: Request, res: Response, next: NextFunction): 
 /** POST /api/tasks */
 export async function createTaskHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { title, description, task_type_id, priority, status, due_date, created_by, assigned_user_ids, project_id } = req.body;
+    const { title, description, task_type_id, priority, status, due_date, assigned_user_ids, project_id } = req.body;
+    const createdBy = String(req.user?.id ?? req.body?.created_by ?? "").trim();
     
     // Validate required fields
     if (!title || typeof title !== "string" || title.trim().length === 0) {
@@ -195,8 +196,21 @@ export async function createTaskHandler(req: Request, res: Response, next: NextF
       res.status(400).json({ error: "ชื่องานต้องไม่เกิน 255 ตัวอักษร" });
       return;
     }
+    if (!createdBy) {
+      res.status(401).json({ error: "กรุณาเข้าสู่ระบบก่อนสร้างงาน" });
+      return;
+    }
 
-    const taskId = await createTask({ title, description, task_type_id, priority, status, due_date, created_by, project_id });
+    const taskId = await createTask({
+      title,
+      description,
+      task_type_id,
+      priority,
+      status,
+      due_date,
+      created_by: createdBy,
+      project_id,
+    });
 
     if (assigned_user_ids?.length) {
       await setTaskAssignments(undefined, taskId, assigned_user_ids);
@@ -264,22 +278,24 @@ export async function updateTaskHandler(req: Request, res: Response, next: NextF
       { title, description, task_type_id, priority, status, due_date, assigned_user_ids }
     );
 
+    // Use existing title as fallback when title is not being updated
+    const effectiveTitle = title ?? existingTask.title;
+
     const currentIds = await getCurrentAssignments(taskId);
     if (Array.isArray(assigned_user_ids)) {
       await setTaskAssignments(undefined, taskId, assigned_user_ids);
-      
-      // Only notify about NEW assignments or role changes, not every update
+
+      // Only notify about NEW assignments, not every update
       const newAssignees = assigned_user_ids.filter(uid => !currentIds.includes(uid));
-      const removedAssignees = currentIds.filter(uid => !assigned_user_ids.includes(uid));
-      
+
       for (const uid of newAssignees) {
         try {
-          await createNotification(uid, "งานใหม่", `คุณได้รับมอบหมายงาน: ${title}", "task_assigned", taskId);
-          
+          await createNotification(uid, "งานใหม่", `คุณได้รับมอบหมายงาน: ${effectiveTitle}`, "task_assigned", taskId);
+
           try {
             const user = await findUserById(uid);
             if (user?.line_user_id) {
-              await lineService.notifyNewTask(user.line_user_id, title);
+              await lineService.notifyNewTask(user.line_user_id, effectiveTitle);
             }
           } catch (lineErr) {
             console.error(`[LINE] Failed to notify new assignee ${uid}: ${lineErr instanceof Error ? lineErr.message : "Unknown"}`);
@@ -348,9 +364,11 @@ export async function deleteTaskHandler(req: Request, res: Response, next: NextF
   try {
     const taskId = req.params.id;
     const existingTask = await findTaskById(taskId);
-    if (existingTask) {
-      await createAuditLog(existingTask.id as string, req.user?.id || null, "DELETE", existingTask, null);
+    if (!existingTask) {
+      res.status(404).json({ error: "ไม่พบงานนี้" });
+      return;
     }
+    await createAuditLog(existingTask.id as string, req.user?.id || null, "DELETE", existingTask, null);
     await deleteTask(taskId);
     res.json({ success: true });
   } catch (err) { next(err); }

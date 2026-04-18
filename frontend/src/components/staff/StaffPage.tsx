@@ -7,6 +7,7 @@ import { authService } from "../../services/authService";
 import { userService } from "../../services/userService";
 import { formatDate } from "../../utils/formatters";
 import { statusColor, statusLabel, priorityColor, priorityLabel } from "../../utils/constants";
+import { PASSWORD_REQUIREMENTS_HINT, validatePassword } from "../../utils/validators";
 import type { User, Task } from "../../types";
 
 interface StaffPageProps {
@@ -124,8 +125,9 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
 
     if (!passwordTarget) return;
 
-    if (passwordForm.newPassword.length < 8) {
-      setPasswordMessage({ ok: false, text: "รหัสผ่านใหม่ต้องมีอย่างน้อย 8 ตัวอักษร" });
+    const passwordError = validatePassword(passwordForm.newPassword);
+    if (passwordError) {
+      setPasswordMessage({ ok: false, text: passwordError });
       return;
     }
 
@@ -372,6 +374,7 @@ export function StaffPage({ onEdit, onDelete, refreshTrigger = 0 }: StaffPagePro
                   onChange={(e) => setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))}
                   required
                 />
+                <p className="mt-2 text-xs app-soft">{PASSWORD_REQUIREMENTS_HINT}</p>
               </div>
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider app-soft mb-1">ยืนยันรหัสผ่านใหม่</label>

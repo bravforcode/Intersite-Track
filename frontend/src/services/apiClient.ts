@@ -41,6 +41,7 @@ export interface ApiClientInstance {
   };
   clearApiAuthState: () => void;
   setCachedAccessToken: (token: string | null) => void;
+  setCachedCsrfToken: (token: string | null) => void;
 }
 
 function cloneData<T>(data: T): T {
@@ -59,7 +60,7 @@ export function createApiClient({
   authClient,
   baseUrl = "",
   cacheTtlMs = 1500,
-  requestTimeoutMs = 10_000,
+  requestTimeoutMs = 30_000,
   fetchFn = globalThis.fetch.bind(globalThis),
   storage = globalThis.sessionStorage,
   location = globalThis.location,
@@ -71,14 +72,30 @@ export function createApiClient({
   const inFlightRequests = new Map<string, Promise<unknown>>();
   let cachedAccessToken: string | null = null;
   let pendingAccessTokenPromise: Promise<string | null> | null = null;
+  let cachedCsrfToken: string | null = null;
+  let cachedCsrfTokenScope: string | null = null;
+  let pendingCsrfTokenPromise: Promise<string | null> | null = null;
 
   function setCachedAccessToken(token: string | null): void {
+    if (cachedAccessToken !== token) {
+      cachedCsrfToken = null;
+      cachedCsrfTokenScope = null;
+      pendingCsrfTokenPromise = null;
+    }
     cachedAccessToken = token;
+  }
+
+  function setCachedCsrfToken(token: string | null): void {
+    cachedCsrfToken = token;
+    cachedCsrfTokenScope = token ? (cachedAccessToken ?? "anonymous") : null;
   }
 
   function clearApiAuthState(): void {
     cachedAccessToken = null;
     pendingAccessTokenPromise = null;
+    cachedCsrfToken = null;
+    cachedCsrfTokenScope = null;
+    pendingCsrfTokenPromise = null;
     responseCache.clear();
     inFlightRequests.clear();
   }
@@ -100,10 +117,47 @@ export function createApiClient({
     return pendingAccessTokenPromise;
   }
 
+  async function getCsrfToken(forceRefresh = false, authToken: string | null = null): Promise<string | null> {
+    const csrfScope = authToken ?? "anonymous";
+    if (!forceRefresh && cachedCsrfToken && cachedCsrfTokenScope === csrfScope) return cachedCsrfToken;
+    if (!forceRefresh && pendingCsrfTokenPromise) return pendingCsrfTokenPromise;
+
+    const headers = new Headers();
+    if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
+
+    pendingCsrfTokenPromise = fetchFn(`${baseUrl}/api/csrf-token`, {
+      method: "GET",
+      headers,
+      credentials: "include",
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("ไม่สามารถเริ่มเซสชันความปลอดภัยได้");
+        }
+
+        const headerToken = response.headers.get("X-CSRF-Token");
+        const payload = await response.json().catch(() => ({}));
+        cachedCsrfToken = headerToken ?? payload.csrfToken ?? null;
+        cachedCsrfTokenScope = cachedCsrfToken ? csrfScope : null;
+
+        if (!cachedCsrfToken) {
+          throw new Error("เซิร์ฟเวอร์ไม่ได้ส่ง CSRF token กลับมา");
+        }
+
+        return cachedCsrfToken;
+      })
+      .finally(() => {
+        pendingCsrfTokenPromise = null;
+      });
+
+    return pendingCsrfTokenPromise;
+  }
+
   async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const method = (options.method ?? "GET").toUpperCase();
     const token = await getToken();
     const cacheKey = `${method}:${endpoint}:${token ?? "guest"}`;
+    const requiresCsrf = !["GET", "HEAD", "OPTIONS"].includes(method) && endpoint !== "/api/csrf-token";
 
     if (method === "GET") {
       const cached = responseCache.get(cacheKey);
@@ -119,15 +173,21 @@ export function createApiClient({
       responseCache.clear();
     }
 
-    const headers = new Headers(options.headers);
-    if (!headers.has("Content-Type") && !(options.body instanceof FormData)) {
-      headers.set("Content-Type", "application/json");
-    }
-    if (token) {
-      headers.set("Authorization", `Bearer ${token}`);
-    }
+    const executeRequest = async (csrfRetry = false): Promise<T> => {
+      const headers = new Headers(options.headers);
+      if (!headers.has("Content-Type") && !(options.body instanceof FormData)) {
+        headers.set("Content-Type", "application/json");
+      }
+      if (token) {
+        headers.set("Authorization", `Bearer ${token}`);
+      }
+      if (requiresCsrf) {
+        const csrfToken = await getCsrfToken(csrfRetry, token);
+        if (csrfToken) {
+          headers.set("x-csrf-token", csrfToken);
+        }
+      }
 
-    const executeRequest = async () => {
       const controller = new AbortController();
       const timeout = setTimeoutFn(() => controller.abort(), requestTimeoutMs);
 
@@ -135,6 +195,7 @@ export function createApiClient({
         ...options,
         headers,
         signal: options.signal ?? controller.signal,
+        credentials: "include",
       }).finally(() => {
         clearTimeoutFn(timeout);
       });
@@ -149,8 +210,13 @@ export function createApiClient({
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: "เกิดข้อผิดพลาด" }));
+        const errorMessage = typeof err.error === "string" ? err.error : "เกิดข้อผิดพลาด";
+        if (res.status === 403 && requiresCsrf && !csrfRetry && /csrf/i.test(errorMessage)) {
+          cachedCsrfToken = null;
+          return executeRequest(true);
+        }
         const detail = typeof err.detail === "string" && err.detail ? ` (${err.detail})` : "";
-        throw new Error((err.error || "เกิดข้อผิดพลาด") + detail);
+        throw new Error(errorMessage + detail);
       }
 
       if (res.status === 204) {
@@ -195,8 +261,8 @@ export function createApiClient({
     }
   }
 
-  return {
-    api: {
+    return {
+      api: {
       get: <T>(url: string) => request<T>(url),
       post: <T>(url: string, data: unknown) =>
         request<T>(url, { method: "POST", body: JSON.stringify(data) }),
@@ -208,5 +274,6 @@ export function createApiClient({
     },
     clearApiAuthState,
     setCachedAccessToken,
+    setCachedCsrfToken,
   };
 }

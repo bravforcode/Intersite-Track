@@ -95,7 +95,7 @@ test("deduplicates concurrent GET requests and serves cached clones", async () =
   assert.equal(third[0].nested.label, "original");
 });
 
-test("clears cached GET data after a mutating request", async () => {
+test("fetches a CSRF token for mutating requests and clears cached GET data after mutation", async () => {
   const storage = createStorage();
   const location = { href: "/dashboard" };
   const { client: authClient } = createAuthClient({ accessToken: "session-token" });
@@ -103,14 +103,31 @@ test("clears cached GET data after a mutating request", async () => {
 
   const fetchFn = async (input, init = {}) => {
     const method = init.method ?? "GET";
-    calls.push({ input, method });
+    const headers = new Headers(init.headers);
+    calls.push({
+      input,
+      method,
+      csrfToken: headers.get("x-csrf-token"),
+    });
 
     if (calls.length === 1) {
       return jsonResponse({ total: 1 });
     }
 
     if (calls.length === 2) {
+      assert.equal(method, "GET");
+      return new Response(JSON.stringify({ csrfToken: "csrf-token" }), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": "csrf-token",
+        },
+      });
+    }
+
+    if (calls.length === 3) {
       assert.equal(method, "POST");
+      assert.equal(calls[2].csrfToken, "csrf-token");
       return new Response(null, { status: 204 });
     }
 
@@ -126,7 +143,48 @@ test("clears cached GET data after a mutating request", async () => {
 
   const second = await api.get("/api/stats");
   assert.equal(second.total, 2);
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
+});
+
+test("refreshes cached CSRF token when the access token changes", async () => {
+  const storage = createStorage();
+  const location = { href: "/dashboard" };
+  const { client: authClient } = createAuthClient();
+  const calls = [];
+
+  const fetchFn = async (input, init = {}) => {
+    const headers = new Headers(init.headers);
+    calls.push({
+      input,
+      method: init.method ?? "GET",
+      authorization: headers.get("Authorization"),
+      csrfToken: headers.get("x-csrf-token"),
+    });
+
+    if (String(input).endsWith("/api/csrf-token")) {
+      const token = headers.get("Authorization") ? "user-csrf" : "anon-csrf";
+      return new Response(JSON.stringify({ csrfToken: token }), {
+        status: 200,
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": token,
+        },
+      });
+    }
+
+    return new Response(null, { status: 204 });
+  };
+
+  const client = createApiClient({ authClient, fetchFn, storage, location });
+
+  await client.api.post("/api/auth/signup", { email: "new@example.test" });
+  client.setCachedAccessToken("session-token");
+  await client.api.post("/api/auth/profile", {});
+
+  assert.equal(calls[0].authorization, null);
+  assert.equal(calls[1].csrfToken, "anon-csrf");
+  assert.equal(calls[2].authorization, "Bearer session-token");
+  assert.equal(calls[3].csrfToken, "user-csrf");
 });
 
 test("signs out locally, clears storage, and redirects on 401", async () => {

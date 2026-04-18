@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { adminAuth, db } from "../config/firebase-admin.js";
 import axios from "axios";
+import { validatePasswordStrength } from "../utils/password.js";
 
 async function verifyCurrentPassword(email: string, password: string): Promise<boolean> {
   const apiKey = process.env.VITE_FIREBASE_API_KEY;
@@ -92,8 +93,9 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
       return;
     }
 
-    if (password.length < 8) {
-      res.status(400).json({ error: "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร" });
+    const passwordValidation = validatePasswordStrength(password);
+    if (!passwordValidation.valid) {
+      res.status(400).json({ error: passwordValidation.errors[0] });
       return;
     }
 
@@ -230,8 +232,9 @@ export async function changePassword(req: Request, res: Response, next: NextFunc
       return;
     }
 
-    if (!new_password || new_password.length < 8) {
-      res.status(400).json({ error: "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร" });
+    const passwordValidation = validatePasswordStrength(String(new_password ?? ""));
+    if (!passwordValidation.valid) {
+      res.status(400).json({ error: passwordValidation.errors[0] });
       return;
     }
 

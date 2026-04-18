@@ -10,15 +10,15 @@ import {
   createSyncLog,
   updateSyncLog,
 } from '../database/queries/trello.queries.js';
+import { getEncryptionKey as getRuntimeEncryptionKey } from '../config/runtime.js';
 import type { TaskChanges } from '../types/trello.js';
 
 // ─── Encryption helpers ───────────────────────────────────────────────────────
 
 const ALGORITHM = 'aes-256-cbc';
-const DEFAULT_DEV_KEY = 'trello-dev-key-32-chars-padding!!'; // 32 chars
 
 function getEncryptionKey(): Buffer {
-  const key = process.env.ENCRYPTION_KEY ?? DEFAULT_DEV_KEY;
+  const key = getRuntimeEncryptionKey();
   return Buffer.from(key.slice(0, 32).padEnd(32, '0'), 'utf8');
 }
 

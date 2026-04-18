@@ -5,6 +5,7 @@ import {
 } from "../database/queries/user.queries.js";
 import { adminAuth, db } from "../config/firebase-admin.js";
 import { createAuditLog } from "../utils/auditLogger.js";
+import { validatePasswordStrength } from "../utils/password.js";
 
 /** GET /api/users — Admin only (enforced at route level) */
 export async function getUsers(_req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -51,8 +52,9 @@ export async function createUserHandler(req: Request, res: Response, next: NextF
       res.status(400).json({ error: "กรุณากรอกข้อมูลให้ครบ (email, password, ชื่อ-นามสกุล, username)" });
       return;
     }
-    if (password.length < 8) {
-      res.status(400).json({ error: "รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร" });
+    const passwordValidation = validatePasswordStrength(password);
+    if (!passwordValidation.valid) {
+      res.status(400).json({ error: passwordValidation.errors[0] });
       return;
     }
 

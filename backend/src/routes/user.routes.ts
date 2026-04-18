@@ -4,6 +4,8 @@ import {
   deleteUserHandler, getUserTasksHandler, getTaskContextUsersHandler,
 } from "../controllers/user.controller.js";
 import { requireAuth, requireRole } from "../middleware/auth.middleware.js";
+import { validate } from "../middleware/validate.middleware.js";
+import { CreateUserSchema, UpdateUserSchema } from "../../../shared/schemas/api.schemas.js";
 
 const router = Router();
 
@@ -18,10 +20,10 @@ router.get("/task-context", requireAuth, getTaskContextUsersHandler);
 router.get("/:id", requireAuth, getUser);
 
 // POST /api/users — Admin only: create new user account
-router.post("/", requireAuth, requireRole("admin"), createUserHandler);
+router.post("/", requireAuth, requireRole("admin"), validate(CreateUserSchema), createUserHandler);
 
 // PUT /api/users/:id — Admin only: update user profile/role
-router.put("/:id", requireAuth, requireRole("admin"), updateUserHandler);
+router.put("/:id", requireAuth, requireRole("admin"), validate(UpdateUserSchema), updateUserHandler);
 
 // DELETE /api/users/:id — Admin only: remove user account
 router.delete("/:id", requireAuth, requireRole("admin"), deleteUserHandler);

@@ -33,3 +33,21 @@ test("debug endpoint is removed from server/routes/index.ts", () => {
     "Firebase project ID should not be exposed in routes"
   );
 });
+
+test("production SPA fallback is registered after API middleware", () => {
+  const serverFile = readFileSync(
+    join(__dirname, "../../backend/server.ts"),
+    "utf-8"
+  );
+
+  const apiMiddlewareMatch = serverFile.match(/app\.use\(\s*["']\/api["']/);
+  const apiMiddlewareIndex = apiMiddlewareMatch ? apiMiddlewareMatch.index : -1;
+  const spaFallbackIndex = serverFile.indexOf('app.get("*"');
+
+  assert(apiMiddlewareIndex !== -1, "Expected /api middleware registration in backend/server.ts");
+  assert(spaFallbackIndex !== -1, "Expected SPA fallback route in backend/server.ts");
+  assert(
+    spaFallbackIndex > apiMiddlewareIndex,
+    "SPA fallback must be registered after /api middleware so GET /api/* keeps working in production"
+  );
+});

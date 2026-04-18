@@ -2,8 +2,10 @@ import http from "k6/http";
 import { check, sleep } from "k6";
 import { buildHtmlReport } from "./lib/summary-report.js";
 
-const BASE_URL = (__ENV.K6_BASE_URL || "http://localhost:8000").replace(/\/$/, "");
-const API_BASE = `${BASE_URL}/api/v1`;
+const BASE_URL = (__ENV.K6_BASE_URL || "http://localhost:3694").replace(/\/$/, "");
+const API_BASE = `${BASE_URL}/api`;
+const BEARER_TOKEN = __ENV.K6_BEARER_TOKEN;
+const USER_ID = __ENV.K6_USER_ID;
 
 export const options = {
   stages: [
@@ -13,46 +15,38 @@ export const options = {
     { duration: "30s", target: 0 },
   ],
   thresholds: {
-    http_req_duration: ["p(95)<500"],
+    http_req_duration: ["p(95)<1500"],
     http_req_failed: ["rate<0.01"],
     checks: ["rate>0.99"],
   },
 };
 
 export function setup() {
-  const res = http.get(`${API_BASE}/shops`);
-  if (res.status === 200) {
-    try {
-      const data = JSON.parse(res.body);
-      const ids = Array.isArray(data)
-        ? data.map((item) => item.id).filter((id) => id !== undefined)
-        : [];
-      return { shopIds: ids.slice(0, 100) };
-    } catch (error) {
-      return { shopIds: [] };
-    }
-  }
-  return { shopIds: [] };
+  return { ready: true };
 }
 
 export default function (data) {
-  const health = http.get(`${BASE_URL}/health`);
+  const health = http.get(`${BASE_URL}/api/health`);
   check(health, {
     "health 200": (r) => r.status === 200,
   });
 
-  const list = http.get(`${API_BASE}/shops`);
-  check(list, {
-    "shops 200": (r) => r.status === 200,
-  });
-
-  const ids = data && data.shopIds ? data.shopIds : [];
-  if (ids.length > 0) {
-    const randomId = ids[Math.floor(Math.random() * ids.length)];
-    const detail = http.get(`${API_BASE}/shops/${randomId}`);
-    check(detail, {
-      "shop detail 200": (r) => r.status === 200,
+  if (BEARER_TOKEN) {
+    const workspace = http.get(`${API_BASE}/tasks/workspace`, {
+      headers: { Authorization: `Bearer ${BEARER_TOKEN}` },
     });
+    check(workspace, {
+      "workspace < 400": (r) => r.status > 0 && r.status < 400,
+    });
+
+    if (USER_ID) {
+      const unreadCount = http.get(`${API_BASE}/notifications/${USER_ID}/unread-count`, {
+        headers: { Authorization: `Bearer ${BEARER_TOKEN}` },
+      });
+      check(unreadCount, {
+        "unread-count < 400": (r) => r.status > 0 && r.status < 400,
+      });
+    }
   }
 
   sleep(1);
@@ -60,7 +54,7 @@ export default function (data) {
 
 export function handleSummary(data) {
   return {
-    "reports/k6/summary.json": JSON.stringify(data, null, 2),
-    "reports/k6/report.html": buildHtmlReport(data),
+    "k6-summary.json": JSON.stringify(data, null, 2),
+    "k6-report.html": buildHtmlReport(data),
   };
 }

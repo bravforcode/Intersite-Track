@@ -331,15 +331,19 @@ export const findAll = findAllTasks;
  */
 export async function findTasksByStatus(
   status: TaskStatus,
-  limit: number = 100
+  limit?: number
 ): Promise<Task[]> {
-  const snap = await db
+  let query: FirebaseFirestore.Query = db
     .collection("tasks")
     .where("status", "==", status)
-    .orderBy("created_at", "desc")
-    .limit(limit)
-    .get();
-  
+    .orderBy("created_at", "desc");
+
+  if (typeof limit === "number" && Number.isFinite(limit) && limit > 0) {
+    query = query.limit(limit);
+  }
+
+  const snap = await query.get();
+
   const tasks = snap.docs.map(doc => mapTask(doc.id, doc.data()));
   return await applyChecklistState(tasks);
 }
@@ -352,21 +356,23 @@ export async function findTasksByStatus(
 export async function findTasksByPriority(
   priority: TaskPriority,
   status?: TaskStatus,
-  limit: number = 100
+  limit?: number
 ): Promise<Task[]> {
-  let query = db
+  let query: FirebaseFirestore.Query = db
     .collection("tasks")
     .where("priority", "==", priority);
-  
+
   if (status) {
     query = query.where("status", "==", status);
   }
-  
-  const snap = await query
-    .orderBy("created_at", "desc")
-    .limit(limit)
-    .get();
-  
+
+  query = query.orderBy("created_at", "desc");
+  if (typeof limit === "number" && Number.isFinite(limit) && limit > 0) {
+    query = query.limit(limit);
+  }
+
+  const snap = await query.get();
+
   const tasks = snap.docs.map(doc => mapTask(doc.id, doc.data()));
   return await applyChecklistState(tasks);
 }
@@ -379,21 +385,23 @@ export async function findTasksByPriority(
 export async function findTasksByProject(
   projectId: string,
   status?: TaskStatus,
-  limit: number = 100
+  limit?: number
 ): Promise<Task[]> {
-  let query = db
+  let query: FirebaseFirestore.Query = db
     .collection("tasks")
     .where("project_id", "==", projectId);
-  
+
   if (status) {
     query = query.where("status", "==", status);
   }
-  
-  const snap = await query
-    .orderBy("created_at", "desc")
-    .limit(limit)
-    .get();
-  
+
+  query = query.orderBy("created_at", "desc");
+  if (typeof limit === "number" && Number.isFinite(limit) && limit > 0) {
+    query = query.limit(limit);
+  }
+
+  const snap = await query.get();
+
   const tasks = snap.docs.map(doc => mapTask(doc.id, doc.data()));
   return await applyChecklistState(tasks);
 }
@@ -408,20 +416,19 @@ export async function findTasksByAssignee(
   status?: TaskStatus,
   limit: number = 100
 ): Promise<Task[]> {
-  let query = db
+  // Avoid hard dependency on composite indexes for staff workspaces:
+  // fetch assigned tasks first, then apply status filtering and sorting in memory.
+  const snap = await db
     .collection("tasks")
-    .where("assignees", "array-contains", userId);
-  
-  if (status) {
-    query = query.where("status", "==", status);
-  }
-  
-  const snap = await query
-    .orderBy("created_at", "desc")
-    .limit(limit)
+    .where("assignees", "array-contains", userId)
     .get();
-  
-  const tasks = snap.docs.map(doc => mapTask(doc.id, doc.data()));
+
+  const tasks = snap.docs
+    .map(doc => mapTask(doc.id, doc.data()))
+    .filter(task => !status || task.status === status)
+    .sort((left, right) => String(right.created_at).localeCompare(String(left.created_at)))
+    .slice(0, limit);
+
   return await applyChecklistState(tasks);
 }
 
@@ -433,23 +440,42 @@ export async function findTasksByDueDateRange(
   dateFrom: string,
   dateTo: string,
   status?: TaskStatus,
-  limit: number = 100
+  limit?: number
 ): Promise<Task[]> {
-  let query = db
+  let query: FirebaseFirestore.Query = db
     .collection("tasks")
     .where("due_date", ">=", dateFrom)
     .where("due_date", "<=", dateTo);
-  
+
   if (status) {
     query = query.where("status", "==", status);
   }
-  
-  const snap = await query
-    .limit(limit)
-    .get();
-  
+
+  if (typeof limit === "number" && Number.isFinite(limit) && limit > 0) {
+    query = query.limit(limit);
+  }
+
+  const snap = await query.get();
+
   const tasks = snap.docs.map(doc => mapTask(doc.id, doc.data()));
   return await applyChecklistState(tasks);
+}
+
+export async function findActiveTasks(limit?: number): Promise<Task[]> {
+  const [pendingTasks, inProgressTasks] = await Promise.all([
+    findTasksByStatus("pending"),
+    findTasksByStatus("in_progress"),
+  ]);
+
+  const tasks = [...pendingTasks, ...inProgressTasks].sort((left, right) =>
+    String(right.created_at).localeCompare(String(left.created_at))
+  );
+
+  if (typeof limit === "number" && Number.isFinite(limit) && limit > 0) {
+    return tasks.slice(0, limit);
+  }
+
+  return tasks;
 }
 export const findById = findTaskById;
 export const create = createTask;

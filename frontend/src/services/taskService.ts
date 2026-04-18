@@ -14,6 +14,15 @@ import type {
 } from "../types";
 import type { Blocker } from "../types/project";
 
+type TaskListResponse = Task[] | { data?: Task[] };
+type TaskWorkspaceResponse =
+  | TaskWorkspace
+  | {
+      data?: Task[];
+      users?: TaskWorkspace["users"];
+      taskTypes?: TaskWorkspace["taskTypes"];
+    };
+
 export interface TaskFilters {
   search?: string;
   status?: string;
@@ -31,14 +40,39 @@ function buildQuery(filters: TaskFilters): string {
   return qs ? `?${qs}` : "";
 }
 
+function normalizeTaskList(response: TaskListResponse): Task[] {
+  if (Array.isArray(response)) return response;
+  return Array.isArray(response.data) ? response.data : [];
+}
+
+function normalizeTaskWorkspace(response: TaskWorkspaceResponse): TaskWorkspace {
+  if ("tasks" in response && Array.isArray(response.tasks)) {
+    return response;
+  }
+
+  const paginatedResponse = response as {
+    data?: Task[];
+    users?: TaskWorkspace["users"];
+    taskTypes?: TaskWorkspace["taskTypes"];
+  };
+
+  return {
+    tasks: Array.isArray(paginatedResponse.data) ? paginatedResponse.data : [],
+    users: Array.isArray(paginatedResponse.users) ? paginatedResponse.users : [],
+    taskTypes: Array.isArray(paginatedResponse.taskTypes) ? paginatedResponse.taskTypes : [],
+  };
+}
+
 export const taskService = {
-  getTasks: (filters?: TaskFilters) =>
-    api.get<Task[]>(`/api/tasks${buildQuery(filters ?? {})}`),
+  getTasks: async (filters?: TaskFilters) =>
+    normalizeTaskList(await api.get<TaskListResponse>(`/api/tasks${buildQuery(filters ?? {})}`)),
 
   getTask: (id: string) => api.get<Task>(`/api/tasks/${id}`),
 
-  getWorkspace: (filters?: TaskFilters) =>
-    api.get<TaskWorkspace>(`/api/tasks/workspace${buildQuery(filters ?? {})}`),
+  getWorkspace: async (filters?: TaskFilters) =>
+    normalizeTaskWorkspace(
+      await api.get<TaskWorkspaceResponse>(`/api/tasks/workspace${buildQuery(filters ?? {})}`)
+    ),
 
   createTask: (dto: CreateTaskDTO) => api.post<{ id: string }>("/api/tasks", dto),
 
@@ -76,18 +110,36 @@ export const taskService = {
 
   getStats: () => api.get<Stats>("/api/stats"),
 
-  uploadImage: async (file: File): Promise<string> => {
+  uploadImage: async (taskId: string, file: File): Promise<string> => {
     const token = await authService.getToken();
+    const csrfResponse = await fetch("/api/csrf-token", {
+      method: "GET",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: "include",
+    });
+    const csrfPayload = await csrfResponse.json().catch(() => ({}));
+    const csrfToken = csrfResponse.headers.get("X-CSRF-Token") ?? csrfPayload.csrfToken;
+
+    if (!csrfResponse.ok || !csrfToken) {
+      throw new Error("ไม่สามารถเริ่มเซสชันความปลอดภัยสำหรับการอัปโหลดไฟล์ได้");
+    }
+
     const formData = new FormData();
     formData.append("image", file);
-    const res = await fetch("/api/tasks/upload", {
+    const res = await fetch(`/api/tasks/${taskId}/upload`, {
       method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        "x-csrf-token": csrfToken,
+      },
       body: formData,
+      credentials: "include",
     });
     if (!res.ok) throw new Error("อัปโหลดไฟล์ไม่สำเร็จ");
     const data = await res.json();
-    return data.url;
+    return data.download_url;
   },
 };
 

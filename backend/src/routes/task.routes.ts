@@ -14,25 +14,23 @@ import { CreateTaskSchema, UpdateTaskSchema } from "../../../shared/schemas/api.
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { fileURLToPath } from "url";
 
 const isDev = process.env.NODE_ENV !== "production" && !process.env.VERCEL;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, "../../..");
+const uploadsDir = path.join(repoRoot, "uploads");
+const VERCEL_SERVER_UPLOAD_LIMIT_BYTES = 4 * 1024 * 1024;
+const LOCAL_UPLOAD_LIMIT_BYTES = 10 * 1024 * 1024;
+const maxUploadBytes = process.env.VERCEL ? VERCEL_SERVER_UPLOAD_LIMIT_BYTES : LOCAL_UPLOAD_LIMIT_BYTES;
 
 // ── Storage setup ──────────────────────────────────────────────────
-// Dev: save to local /uploads folder
-// Production: use memory buffer → upload to Vercel Blob
-const uploadsDir = path.join(process.cwd(), "uploads");
+// Dev/production: keep uploads in memory, then persist to the correct backing store.
 if (isDev && !fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
-const storage = isDev
-  ? multer.diskStorage({
-      destination: (_req, _file, cb) => cb(null, uploadsDir),
-      filename: (_req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
-    })
-  : multer.memoryStorage(); // production: keep in memory, upload to Vercel Blob
-
 const upload = multer({
-  storage,
-  limits: { fileSize: 25 * 1024 * 1024 }, // Increase to 25MB
+  storage: multer.memoryStorage(),
+  limits: { fileSize: maxUploadBytes },
   fileFilter: (_req, file, cb) => {
     const allowedTypes = [
       "image/",
@@ -52,6 +50,12 @@ const upload = multer({
 });
 
 const router = Router();
+
+function buildSafeFilename(originalName: string): string {
+  const baseName = path.basename(originalName).trim() || "upload.bin";
+  const normalized = baseName.replace(/[^\w.\-() ]+/g, "_");
+  return `${Date.now()}-${normalized}`;
+}
 
 router.get("/workspace", requireAuth, getTasksWorkspace);
 router.get("/", requireAuth, getTasks);
@@ -79,7 +83,7 @@ router.post("/:taskId/upload", requireAuth, upload.single("image"), async (req, 
 
     // 1. Validate file
     const storageService = await import("../services/storageService.js");
-    const validation = storageService.validateFileUpload(file);
+    const validation = storageService.validateFileUpload(file, { maxSizeBytes: maxUploadBytes });
     if (!validation.valid) {
       res.status(400).json({ error: validation.error });
       return;
@@ -102,18 +106,15 @@ router.post("/:taskId/upload", requireAuth, upload.single("image"), async (req, 
     let blobUrl: string;
     if (isDev) {
       // Dev: save to local filesystem with metadata
-      const path = require("path");
-      const fs = require("fs").promises;
-      const uploadDir = path.join(process.cwd(), "../uploads");
-      await fs.mkdir(uploadDir, { recursive: true });
-      const filename = `${Date.now()}-${file.originalname}`;
-      const filepath = path.join(uploadDir, filename);
-      await fs.writeFile(filepath, file.buffer);
+      const filename = buildSafeFilename(file.originalname);
+      const filepath = path.join(uploadsDir, filename);
+      await fs.promises.mkdir(uploadsDir, { recursive: true });
+      await fs.promises.writeFile(filepath, file.buffer);
       blobUrl = `/uploads/${filename}`;
     } else {
       // Production: upload to Vercel Blob with PRIVATE access
       const { put } = await import("@vercel/blob");
-      const filename = `task-attachments/${taskId}/${Date.now()}-${file.originalname}`;
+      const filename = `task-attachments/${taskId}/${buildSafeFilename(file.originalname)}`;
       const blob = await put(filename, file.buffer, {
         access: "private", // SECURITY: Private storage only
         contentType: file.mimetype,
@@ -137,61 +138,6 @@ router.post("/:taskId/upload", requireAuth, upload.single("image"), async (req, 
       download_url: `/api/files/${metadata.id}/download`,
       original_name: metadata.original_name,
     });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// GET /api/files/:fileId/download — secure file download with authorization
-router.get("/files/:fileId/download", requireAuth, async (req, res, next) => {
-  try {
-    const { fileId } = req.params;
-    const storageService = await import("../services/storageService.js");
-    const taskAccessModule = await import("../utils/taskAccess.js");
-
-    // 1. Get file metadata
-    const file = await storageService.getFileMetadata(fileId);
-    if (!file) {
-      res.status(404).json({ error: "ไฟล์ไม่พบ" });
-      return;
-    }
-
-    // 2. Check authorization
-    const canAccess = await storageService.canAccessFile(
-      req.user!.id,
-      req.user!.role,
-      fileId,
-      (user: any, taskId: string) => taskAccessModule.ensureTaskAccess(user, taskId)
-    );
-
-    if (!canAccess) {
-      res.status(403).json({ error: "คุณไม่มีสิทธิ์ดาวน์โหลดไฟล์นี้" });
-      return;
-    }
-
-    // 3. Serve file or redirect to cached Vercel Blob URL
-    // In dev mode, serve the file directly
-    if (isDev) {
-      const fs = require("fs").promises;
-      const path = require("path");
-      const uploadDir = path.join(process.cwd(), "../uploads");
-      const filename = file.blob_url.replace("/uploads/", "");
-      const filepath = path.join(uploadDir, filename);
-      const buffer = await fs.readFile(filepath);
-      res.set({
-        "Content-Type": file.mime_type,
-        "Content-Disposition": `attachment; filename="${file.original_name}"`,
-      });
-      res.send(buffer);
-    } else {
-      // Production: Vercel Blob private URL (blob_url is already a valid download link)
-      // Just serve it as attachment header redirect
-      res.set({
-        "Content-Type": file.mime_type,
-        "Content-Disposition": `attachment; filename="${file.original_name}"`,
-      });
-      res.redirect(file.blob_url);
-    }
   } catch (err) {
     next(err);
   }

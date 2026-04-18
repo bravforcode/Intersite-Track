@@ -1,4 +1,4 @@
-﻿{
+{
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
@@ -9,10 +9,5 @@
       "@shared/*": ["./shared/*"]
     }
   },
-  "references": [
-    { "path": "./frontend" },
-    { "path": "./backend" },
-    { "path": "./shared" }
-  ],
   "exclude": ["node_modules", "dist", "frontend/dist", "backend/dist"]
 }
