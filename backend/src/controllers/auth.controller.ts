@@ -19,8 +19,8 @@ function envValue(name: string, fallback: string): string {
 }
 
 function isQuickRoleLoginEnabled(): boolean {
-  const raw = (process.env.VITE_ENABLE_QUICK_LOGIN ?? "true").trim().toLowerCase();
-  return !["false", "0", "off", "no"].includes(raw);
+  const raw = (process.env.DISABLE_QUICK_ROLE_LOGIN ?? "false").trim().toLowerCase();
+  return !["true", "1", "on", "yes"].includes(raw);
 }
 
 function getQuickLoginAccount(role: QuickLoginRole): QuickLoginAccount {
