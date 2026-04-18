@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ClipboardList, Loader2, Mail, Lock, Eye, EyeOff, Sparkles } from "lucide-react";
+import { ClipboardList, Loader2, Mail, Lock, Eye, EyeOff, Sparkles, ShieldCheck, UserRound } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { authService } from "../../services/authService";
 import { features, quickLoginAccounts } from "../../config/features";
@@ -11,6 +11,7 @@ interface LoginPageProps {
 }
 
 type View = "login" | "signup" | "forgotPassword" | "verifyNotice";
+type LoginRole = "admin" | "staff";
 
 const primaryGradient = "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)";
 const logoGradient = "linear-gradient(145deg, #38BDF8 0%, #2563EB 55%, #1E40AF 100%)";
@@ -33,6 +34,7 @@ const errorBoxClass =
 
 export function LoginPage({ onLogin }: LoginPageProps) {
   const [view, setView] = useState<View>("login");
+  const [selectedRole, setSelectedRole] = useState<LoginRole>("admin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -53,6 +55,15 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       setPassword(loginPassword);
 
       const user = await authService.signIn(normalizedEmail, loginPassword);
+      if (user.role !== selectedRole) {
+        await authService.signOut();
+        setError(
+          selectedRole === "admin"
+            ? "บัญชีนี้ไม่ใช่แอดมิน กรุณาเลือกบทบาทพนักงานหรือใช้บัญชีแอดมิน"
+            : "บัญชีนี้ไม่ใช่พนักงาน กรุณาเลือกบทบาทแอดมินหรือใช้บัญชีพนักงาน"
+        );
+        return;
+      }
       onLogin(user);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
@@ -236,6 +247,55 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               )}
 
               <form onSubmit={handleLogin} className="space-y-4">
+                <div>
+                  <label className={labelClass}>บทบาท</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      {
+                        role: "admin" as const,
+                        label: "แอดมิน",
+                        helper: "Admin",
+                        icon: ShieldCheck,
+                      },
+                      {
+                        role: "staff" as const,
+                        label: "พนักงาน",
+                        helper: "Staff",
+                        icon: UserRound,
+                      },
+                    ]).map((option) => {
+                      const Icon = option.icon;
+                      const active = selectedRole === option.role;
+                      return (
+                        <button
+                          key={option.role}
+                          type="button"
+                          disabled={loading}
+                          onClick={() => setSelectedRole(option.role)}
+                          className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all disabled:opacity-60 ${
+                            active
+                              ? "border-blue-500 bg-blue-50 shadow-sm shadow-blue-500/10"
+                              : "border-sky-100 bg-white hover:border-blue-200 hover:bg-sky-50"
+                          }`}
+                          aria-pressed={active}
+                        >
+                          <span
+                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                              active ? "bg-blue-600 text-white" : "bg-sky-50 text-sky-700"
+                            }`}
+                          >
+                            <Icon className="h-4 w-4" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold text-slate-900">{option.label}</span>
+                            <span className="block text-xs text-slate-500">{option.helper}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div>
                   <label className={labelClass}>อีเมล</label>
                   <div className="relative">
