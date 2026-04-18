@@ -20,10 +20,26 @@ test("buildQuickLoginAccounts only returns accounts with both email and password
   }]);
 });
 
-test("quick login requires explicit enablement and a non-production environment", () => {
+test("buildQuickLoginAccounts falls back to default role logins when env credentials are absent", () => {
+  assert.deepEqual(buildQuickLoginAccounts({}), [
+    {
+      label: "แอดมิน (Admin)",
+      subtitle: "admin@taskam.local",
+      email: "admin@taskam.local",
+      password: "admin123",
+    },
+    {
+      label: "พนักงาน (Staff)",
+      subtitle: "somchai@taskam.local",
+      email: "somchai@taskam.local",
+      password: "staff123",
+    },
+  ]);
+});
+
+test("quick login requires explicit enablement and at least one account", () => {
   assert.equal(
     isQuickLoginEnabled({
-      appEnvironment: "development",
       flagEnabled: true,
       accountCount: 1,
     }),
@@ -32,16 +48,14 @@ test("quick login requires explicit enablement and a non-production environment"
 
   assert.equal(
     isQuickLoginEnabled({
-      appEnvironment: "production",
       flagEnabled: true,
-      accountCount: 1,
+      accountCount: 0,
     }),
     false
   );
 
   assert.equal(
     isQuickLoginEnabled({
-      appEnvironment: "development",
       flagEnabled: false,
       accountCount: 1,
     }),

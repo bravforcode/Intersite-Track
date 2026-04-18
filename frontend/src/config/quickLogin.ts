@@ -21,6 +21,21 @@ function normalizeValue(value?: string): string | null {
   return normalized ? normalized : null;
 }
 
+const defaultQuickLoginAccounts: QuickLoginAccount[] = [
+  {
+    label: "แอดมิน (Admin)",
+    subtitle: "admin@taskam.local",
+    email: "admin@taskam.local",
+    password: "admin123",
+  },
+  {
+    label: "พนักงาน (Staff)",
+    subtitle: "somchai@taskam.local",
+    email: "somchai@taskam.local",
+    password: "staff123",
+  },
+];
+
 export function buildQuickLoginAccounts(env: QuickLoginEnv): QuickLoginAccount[] {
   const accountDefinitions = [
     {
@@ -39,7 +54,7 @@ export function buildQuickLoginAccounts(env: QuickLoginEnv): QuickLoginAccount[]
     },
   ];
 
-  return accountDefinitions.flatMap((accountDefinition) => {
+  const configuredAccounts = accountDefinitions.flatMap((accountDefinition) => {
     const email = normalizeValue(accountDefinition.email)?.toLowerCase() ?? null;
     const password = normalizeValue(accountDefinition.password);
 
@@ -54,13 +69,13 @@ export function buildQuickLoginAccounts(env: QuickLoginEnv): QuickLoginAccount[]
       password,
     }];
   });
+
+  return configuredAccounts.length > 0 ? configuredAccounts : defaultQuickLoginAccounts;
 }
 
 export function isQuickLoginEnabled(params: {
-  appEnvironment: string;
   flagEnabled: boolean;
   accountCount: number;
 }): boolean {
-  const allowedEnvironments = new Set(["development", "staging"]);
-  return allowedEnvironments.has(params.appEnvironment) && params.flagEnabled && params.accountCount > 0;
+  return params.flagEnabled && params.accountCount > 0;
 }

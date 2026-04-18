@@ -23,7 +23,6 @@ const quickLoginAccounts = buildQuickLoginAccounts({
 
 const isQuickLoginFlagEnabled = (import.meta.env.VITE_ENABLE_QUICK_LOGIN ?? "false").toLowerCase() === "true";
 const isQuickLoginActive = isQuickLoginEnabled({
-  appEnvironment,
   flagEnabled: isQuickLoginFlagEnabled,
   accountCount: quickLoginAccounts.length,
 });

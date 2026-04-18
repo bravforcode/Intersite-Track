@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ClipboardList, Loader2, Mail, Lock, Eye, EyeOff, Sparkles, ShieldCheck, UserRound } from "lucide-react";
+import { ClipboardList, Loader2, Mail, Lock, Eye, EyeOff, Sparkles } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { authService } from "../../services/authService";
 import { features, quickLoginAccounts } from "../../config/features";
@@ -11,7 +11,6 @@ interface LoginPageProps {
 }
 
 type View = "login" | "signup" | "forgotPassword" | "verifyNotice";
-type LoginRole = "admin" | "staff";
 
 const primaryGradient = "linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%)";
 const logoGradient = "linear-gradient(145deg, #38BDF8 0%, #2563EB 55%, #1E40AF 100%)";
@@ -34,7 +33,6 @@ const errorBoxClass =
 
 export function LoginPage({ onLogin }: LoginPageProps) {
   const [view, setView] = useState<View>("login");
-  const [selectedRole, setSelectedRole] = useState<LoginRole>("admin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -55,15 +53,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
       setPassword(loginPassword);
 
       const user = await authService.signIn(normalizedEmail, loginPassword);
-      if (user.role !== selectedRole) {
-        await authService.signOut();
-        setError(
-          selectedRole === "admin"
-            ? "บัญชีนี้ไม่ใช่แอดมิน กรุณาเลือกบทบาทพนักงานหรือใช้บัญชีแอดมิน"
-            : "บัญชีนี้ไม่ใช่พนักงาน กรุณาเลือกบทบาทแอดมินหรือใช้บัญชีพนักงาน"
-        );
-        return;
-      }
       onLogin(user);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาด";
@@ -246,56 +235,58 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                 </motion.div>
               )}
 
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <label className={labelClass}>บทบาท</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {([
-                      {
-                        role: "admin" as const,
-                        label: "แอดมิน",
-                        helper: "Admin",
-                        icon: ShieldCheck,
-                      },
-                      {
-                        role: "staff" as const,
-                        label: "พนักงาน",
-                        helper: "Staff",
-                        icon: UserRound,
-                      },
-                    ]).map((option) => {
-                      const Icon = option.icon;
-                      const active = selectedRole === option.role;
+              {features.quickLogin.enabled && quickLoginAccounts.length > 0 && (
+                <div className="mb-6">
+                  <div className="flex items-center justify-center gap-2 text-center mb-4">
+                    <Sparkles className="w-4 h-4 text-blue-500" />
+                    <p className="text-sm font-semibold text-slate-900">
+                      เลือกบทบาทเพื่อเข้าสู่ระบบ
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {quickLoginAccounts.map(account => {
+                      const isAdmin = account.label.toLowerCase().includes("admin");
+                      const roleLabel = isAdmin ? "Admin" : "Staff";
+                      const roleBg = isAdmin
+                        ? "bg-violet-100 text-violet-700"
+                        : "bg-emerald-100 text-emerald-700";
                       return (
-                        <button
-                          key={option.role}
+                        <motion.button
+                          key={account.email}
                           type="button"
                           disabled={loading}
-                          onClick={() => setSelectedRole(option.role)}
-                          className={`flex items-center gap-3 rounded-xl border px-3 py-3 text-left transition-all disabled:opacity-60 ${
-                            active
-                              ? "border-blue-500 bg-blue-50 shadow-sm shadow-blue-500/10"
-                              : "border-sky-100 bg-white hover:border-blue-200 hover:bg-sky-50"
-                          }`}
-                          aria-pressed={active}
+                          whileHover={{ y: -1 }}
+                          whileTap={{ scale: 0.99 }}
+                          onClick={() => void handleQuickLogin(account)}
+                          className="w-full rounded-2xl border border-sky-100 bg-linear-to-r from-sky-50 via-white to-blue-50 px-4 py-3 text-left transition-all hover:border-blue-200 hover:shadow-md hover:shadow-blue-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <span
-                            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                              active ? "bg-blue-600 text-white" : "bg-sky-50 text-sky-700"
-                            }`}
-                          >
-                            <Icon className="h-4 w-4" />
-                          </span>
-                          <span className="min-w-0">
-                            <span className="block text-sm font-semibold text-slate-900">{option.label}</span>
-                            <span className="block text-xs text-slate-500">{option.helper}</span>
-                          </span>
-                        </button>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <p className="text-sm font-semibold text-slate-900 truncate">{account.label}</p>
+                                <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${roleBg}`}>
+                                  {roleLabel}
+                                </span>
+                              </div>
+                              <p className="text-xs text-sky-700/70">{account.subtitle}</p>
+                            </div>
+                            {loading ? (
+                              <Loader2 className="shrink-0 w-4 h-4 animate-spin text-blue-600" />
+                            ) : (
+                              <span className="shrink-0 text-xs font-semibold text-blue-600">เข้าสู่ระบบ</span>
+                            )}
+                          </div>
+                        </motion.button>
                       );
                     })}
                   </div>
+                  <p className="text-[11px] text-sky-700/65 text-center mt-3">
+                    กดบทบาทเพื่อเข้าสู่ระบบทันทีโดยไม่ต้องกรอกรหัสผ่าน
+                  </p>
                 </div>
+              )}
 
+              <form onSubmit={handleLogin} className="space-y-4">
                 <div>
                   <label className={labelClass}>อีเมล</label>
                   <div className="relative">
@@ -367,57 +358,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   )}
                 </motion.button>
               </form>
-
-              {features.quickLogin.enabled && quickLoginAccounts.length > 0 && (
-                <div className="mt-6 pt-6 border-t border-sky-100">
-                  <div className="flex items-center justify-center gap-2 text-center mb-4">
-                    <Sparkles className="w-4 h-4 text-blue-500" />
-                    <p className="text-sm font-semibold text-slate-900">
-                      ทดสอบเข้าสู่ระบบ (คลิกเพื่อเข้า)
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    {quickLoginAccounts.map(account => {
-                      const isAdmin = account.label.toLowerCase().includes("admin");
-                      const roleLabel = isAdmin ? "Admin" : "Staff";
-                      const roleBg = isAdmin
-                        ? "bg-violet-100 text-violet-700"
-                        : "bg-emerald-100 text-emerald-700";
-                      return (
-                        <motion.button
-                          key={account.email}
-                          type="button"
-                          disabled={loading}
-                          whileHover={{ y: -1 }}
-                          whileTap={{ scale: 0.99 }}
-                          onClick={() => void handleQuickLogin(account)}
-                          className="w-full rounded-2xl border border-sky-100 bg-linear-to-r from-sky-50 via-white to-blue-50 px-4 py-3 text-left transition-all hover:border-blue-200 hover:shadow-md hover:shadow-blue-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2 mb-0.5">
-                                <p className="text-sm font-semibold text-slate-900 truncate">{account.label}</p>
-                                <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${roleBg}`}>
-                                  {roleLabel}
-                                </span>
-                              </div>
-                              <p className="text-xs text-sky-700/70">{account.subtitle}</p>
-                            </div>
-                            {loading ? (
-                              <Loader2 className="shrink-0 w-4 h-4 animate-spin text-blue-600" />
-                            ) : (
-                              <span className="shrink-0 text-xs font-semibold text-blue-600">เข้าสู่ระบบ</span>
-                            )}
-                          </div>
-                        </motion.button>
-                      );
-                    })}
-                  </div>
-                  <p className="text-[11px] text-sky-700/65 text-center mt-3">
-                    แสดงเฉพาะ development หรือ staging เท่านั้น
-                  </p>
-                </div>
-              )}
 
               <div className="mt-6 text-center">
                 <span className="text-sm text-slate-500">ยังไม่มีบัญชี? </span>
