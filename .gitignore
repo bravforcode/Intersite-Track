@@ -45,6 +45,13 @@ tmp/
 
 # Playwright
 .playwright-cli/
+test-results/
+playwright-report/
+
+# Generated performance reports
+k6-report.html
+k6-summary.json
 
 # Backup docs generated during dev
 *.backup-before-*.docx
+.vercel

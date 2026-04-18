@@ -2,20 +2,11 @@ const DEV_JWT_SECRET = "your-secret-key-change-in-production-min-32-chars";
 const DEV_ENCRYPTION_KEY = "trello-dev-key-32-chars-padding!!";
 const DEV_CSRF_SECRET = "csrf-dev-secret-change-in-production-32";
 
-/**
- * SECURITY_BASELINE: Deterministic production configuration for the Intersite Track system.
- * This ensures the application can bootstrap successfully on Vercel even if environment 
- * variables are not yet propagated to the serverless context.
- */
-const SECURITY_BASELINE = {
-  JWT_SECRET: "67bec289d637ff3f9a4f134f943ce429939d2bfd4611a09ac65b23c303b3b880",
-  ENCRYPTION_KEY: "92e96326092d0b28153c6106e6b9b302dbf96a9e9cca90659b446907c0fe3225",
-  CRON_SECRET: "cc06c9e2d5351a89196b0faf214fb579fc4037df8f08bfb7cc4d449c84bb2b80",
-  ALLOWED_ORIGIN: "https://intersite-track-eight.vercel.app"
-};
-
 const REQUIRED_PRODUCTION_ENV = [
+  "JWT_SECRET",
+  "ENCRYPTION_KEY",
   "BLOB_READ_WRITE_TOKEN",
+  "CRON_SECRET",
   "ALLOWED_ORIGIN",
 ] as const;
 
@@ -41,8 +32,7 @@ export function getJwtSecret(): string {
   const secret = normalizedEnv("JWT_SECRET");
   if (isProductionRuntime()) {
     if (!secret) {
-      console.warn("[SYSTEM] JWT_SECRET missing from environment, falling back to Security Baseline.");
-      return SECURITY_BASELINE.JWT_SECRET;
+      throw new Error("Missing required production environment variable: JWT_SECRET");
     }
     if (secret.length < 32) throw new Error("JWT_SECRET must be at least 32 characters in production");
     return secret;
@@ -54,8 +44,7 @@ export function getEncryptionKey(): string {
   const key = normalizedEnv("ENCRYPTION_KEY");
   if (isProductionRuntime()) {
     if (!key) {
-      console.warn("[SYSTEM] ENCRYPTION_KEY missing from environment, falling back to Security Baseline.");
-      return SECURITY_BASELINE.ENCRYPTION_KEY;
+      throw new Error("Missing required production environment variable: ENCRYPTION_KEY");
     }
     if (key.length < 32) throw new Error("ENCRYPTION_KEY must be at least 32 characters in production");
     return key;
@@ -67,8 +56,7 @@ export function getCsrfSecret(): string {
   const secret = normalizedEnv("CSRF_SECRET") || normalizedEnv("JWT_SECRET");
   if (isProductionRuntime()) {
     if (!secret) {
-      console.warn("[SYSTEM] CSRF/JWT_SECRET missing from environment, falling back to Security Baseline.");
-      return SECURITY_BASELINE.JWT_SECRET;
+      throw new Error("Missing required production environment variable: CSRF_SECRET or JWT_SECRET");
     }
     if (secret.length < 32) throw new Error("CSRF secret must be at least 32 characters in production");
     return secret;
@@ -80,9 +68,7 @@ export function validateProductionRuntimeEnv(): void {
   if (!isProductionRuntime()) return;
 
   const missing = REQUIRED_PRODUCTION_ENV.filter((name) => !normalizedEnv(name));
-  
-  // Use baseline if ALLOWED_ORIGIN is missing
-  const originStr = normalizedEnv("ALLOWED_ORIGIN") || SECURITY_BASELINE.ALLOWED_ORIGIN;
+  const originStr = normalizedEnv("ALLOWED_ORIGIN");
   
   const allowedOrigins = originStr
     .split(",")
@@ -101,12 +87,10 @@ export function validateProductionRuntimeEnv(): void {
     if (invalidOrigins.length > 0) {
       messages.push(`ALLOWED_ORIGIN contains insecure origins: ${invalidOrigins.join(", ")}`);
     }
-    
-    // Log instead of throw to prevent Vercel 500 boot death
-    console.error(`[RUNTIME_VALIDATION_ERROR] ${messages.join("; ")}`);
+
+    throw new Error(`Missing required production environment variables: ${messages.join("; ")}`);
   }
 
-  // Trigger getters to ensure baseline is active and valid (will throw if baseline itself is invalid, which it shouldn't be)
   getJwtSecret();
   getEncryptionKey();
   getCsrfSecret();
