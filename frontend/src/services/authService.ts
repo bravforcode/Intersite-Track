@@ -5,6 +5,7 @@ import {
   onAuthStateChanged,
   reauthenticateWithCredential,
   sendPasswordResetEmail,
+  signInWithCustomToken,
   type User as FirebaseUser,
 } from "firebase/auth";
 import { auth, setMockAuthUser, onMockAuthStateChanged } from "../lib/firebase";
@@ -15,6 +16,8 @@ export interface LoginCredentials {
   email: string;
   password: string;
 }
+
+type QuickLoginRole = "admin" | "staff";
 
 function normalizeAuthMessage(message: string, fallback: string): string {
   const raw = message.trim();
@@ -139,6 +142,43 @@ export const authService = {
       credential.user,
       "เข้าสู่ระบบสำเร็จแล้ว แต่ยังโหลดข้อมูลผู้ใช้ไม่ได้ กรุณาลองใหม่อีกครั้ง"
     );
+  },
+
+  async quickRoleLogin(role: QuickLoginRole): Promise<User> {
+    if (isE2eMock) {
+      const credentials =
+        role === "admin"
+          ? { email: "admin@taskam.local", password: "admin123" }
+          : { email: "somchai@taskam.local", password: "staff123" };
+      let response: { token: string; user: User };
+      try {
+        response = await api.post("/api/auth/mock-login", credentials);
+      } catch (error) {
+        throw new Error(getAuthErrorMessage(error, "ยังไม่สามารถเข้าสู่ระบบบทบาทนี้ได้"));
+      }
+      setCachedAccessToken(response.token);
+      setMockAuthUser({ email: credentials.email, token: response.token });
+      sessionStorage.setItem("user", JSON.stringify(response.user));
+      return response.user;
+    }
+
+    let response: { token: string; user: User };
+    try {
+      response = await api.post("/api/auth/quick-login", { role });
+    } catch (error) {
+      throw new Error(getAuthErrorMessage(error, "ยังไม่สามารถเข้าสู่ระบบบทบาทนี้ได้"));
+    }
+
+    try {
+      const credential = await signInWithCustomToken(firebaseAuth, response.token);
+      const idToken = await credential.user.getIdToken();
+      setCachedAccessToken(idToken);
+      sessionStorage.setItem("user", JSON.stringify(response.user));
+      return response.user;
+    } catch (error) {
+      clearApiAuthState();
+      throw new Error(getAuthErrorMessage(error, "ยังไม่สามารถเข้าสู่ระบบบทบาทนี้ได้"));
+    }
   },
 
   async signOut(): Promise<void> {

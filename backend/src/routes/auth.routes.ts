@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { signup, getProfile, updateMyProfile, changePassword } from "../controllers/auth.controller.js";
+import { signup, quickLogin, getProfile, updateMyProfile, changePassword } from "../controllers/auth.controller.js";
 import { getLineLinkStatus, requestLineLinkCode, unlinkMyLine } from "../controllers/lineLink.controller.js";
 import { requireAuth } from "../middleware/auth.middleware.js";
 import { signupRateLimiter, loginRateLimiter } from "../middleware/rateLimit.middleware.js";
@@ -15,6 +15,10 @@ const router = Router();
 // Public: Create account — rate-limited to 3/hour per IP to prevent Firebase Auth spam
 // Validates: email format, password strength (8+ chars, uppercase, lowercase, number)
 router.post("/auth/signup", signupRateLimiter, validate(SignUpSchema), signup);
+
+// Public shortcut used by the login page role buttons. It creates/signs the
+// configured role account and returns a Firebase custom token.
+router.post("/auth/quick-login", loginRateLimiter, quickLogin);
 
 // Called by frontend after Firebase sign-in to get app profile (role, dept, etc.)
 // Rate-limited to prevent brute-force profile enumeration

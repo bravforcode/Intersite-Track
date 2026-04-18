@@ -3,6 +3,50 @@ import { adminAuth, db } from "../config/firebase-admin.js";
 import axios from "axios";
 import { validatePasswordStrength } from "../utils/password.js";
 
+type QuickLoginRole = "admin" | "staff";
+
+type QuickLoginAccount = {
+  role: QuickLoginRole;
+  email: string;
+  username: string;
+  firstName: string;
+  lastName: string;
+  position: string;
+};
+
+function envValue(name: string, fallback: string): string {
+  return process.env[name]?.trim() || fallback;
+}
+
+function isQuickRoleLoginEnabled(): boolean {
+  const raw = (process.env.VITE_ENABLE_QUICK_LOGIN ?? "true").trim().toLowerCase();
+  return !["false", "0", "off", "no"].includes(raw);
+}
+
+function getQuickLoginAccount(role: QuickLoginRole): QuickLoginAccount {
+  if (role === "admin") {
+    const email = envValue("VITE_QUICK_LOGIN_ADMIN_EMAIL", "admin@taskam.local").toLowerCase();
+    return {
+      role,
+      email,
+      username: envValue("VITE_QUICK_LOGIN_ADMIN_USERNAME", "admin"),
+      firstName: envValue("VITE_QUICK_LOGIN_ADMIN_NAME", "แอดมิน"),
+      lastName: "",
+      position: "Admin",
+    };
+  }
+
+  const email = envValue("VITE_QUICK_LOGIN_STAFF_EMAIL", "somchai@taskam.local").toLowerCase();
+  return {
+    role,
+    email,
+    username: envValue("VITE_QUICK_LOGIN_STAFF_USERNAME", "staff"),
+    firstName: envValue("VITE_QUICK_LOGIN_STAFF_NAME", "สมชาย"),
+    lastName: "",
+    position: "Staff",
+  };
+}
+
 async function verifyCurrentPassword(email: string, password: string): Promise<boolean> {
   const apiKey = process.env.VITE_FIREBASE_API_KEY;
   if (!apiKey) {
@@ -42,6 +86,40 @@ function toSafeProfile(id: string, data: FirebaseFirestore.DocumentData) {
     line_user_id: data.line_user_id ?? null,
     created_at: data.created_at ?? undefined,
   };
+}
+
+async function ensureQuickLoginUser(account: QuickLoginAccount) {
+  let authUser;
+  try {
+    authUser = await adminAuth.getUserByEmail(account.email);
+  } catch (err: any) {
+    if (err.code !== "auth/user-not-found") {
+      throw err;
+    }
+    authUser = await adminAuth.createUser({
+      email: account.email,
+      emailVerified: true,
+      displayName: account.firstName,
+    });
+  }
+
+  const ref = db.collection("users").doc(authUser.uid);
+  const snap = await ref.get();
+  const existing = snap.exists ? snap.data() : null;
+  const profile = {
+    username: account.username,
+    email: account.email,
+    first_name: account.firstName,
+    last_name: account.lastName,
+    role: account.role,
+    department_id: existing?.department_id ?? null,
+    position: account.position,
+    line_user_id: existing?.line_user_id ?? null,
+    created_at: existing?.created_at ?? new Date().toISOString(),
+  };
+
+  await ref.set(profile, { merge: true });
+  return { token: await adminAuth.createCustomToken(authUser.uid), user: toSafeProfile(authUser.uid, profile) };
 }
 
 async function usernameExists(username: string): Promise<boolean> {
@@ -138,6 +216,30 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
         ...(process.env.NODE_ENV === "development" && { detail: msg }),
       });
     }
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * POST /api/auth/quick-login
+ * One-click role login for the demo/operator shortcut shown on the login page.
+ */
+export async function quickLogin(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    if (!isQuickRoleLoginEnabled()) {
+      res.status(403).json({ error: "ปิดการเข้าสู่ระบบแบบเลือกบทบาทอยู่" });
+      return;
+    }
+
+    const role = req.body?.role;
+    if (role !== "admin" && role !== "staff") {
+      res.status(400).json({ error: "บทบาทไม่ถูกต้อง" });
+      return;
+    }
+
+    const result = await ensureQuickLoginUser(getQuickLoginAccount(role));
+    res.json(result);
   } catch (err) {
     next(err);
   }

@@ -1,8 +1,9 @@
 export interface QuickLoginAccount {
+  role: "admin" | "staff";
   label: string;
   subtitle: string;
   email: string;
-  password: string;
+  password?: string;
 }
 
 interface QuickLoginEnv {
@@ -23,22 +24,23 @@ function normalizeValue(value?: string): string | null {
 
 const defaultQuickLoginAccounts: QuickLoginAccount[] = [
   {
+    role: "admin",
     label: "แอดมิน (Admin)",
     subtitle: "admin@taskam.local",
     email: "admin@taskam.local",
-    password: "admin123",
   },
   {
+    role: "staff",
     label: "พนักงาน (Staff)",
     subtitle: "somchai@taskam.local",
     email: "somchai@taskam.local",
-    password: "staff123",
   },
 ];
 
 export function buildQuickLoginAccounts(env: QuickLoginEnv): QuickLoginAccount[] {
   const accountDefinitions = [
     {
+      role: "admin" as const,
       defaultLabel: "แอดมิน (Admin)",
       label: env.VITE_QUICK_LOGIN_ADMIN_LABEL,
       subtitle: env.VITE_QUICK_LOGIN_ADMIN_SUBTITLE,
@@ -46,6 +48,7 @@ export function buildQuickLoginAccounts(env: QuickLoginEnv): QuickLoginAccount[]
       password: env.VITE_QUICK_LOGIN_ADMIN_PASSWORD,
     },
     {
+      role: "staff" as const,
       defaultLabel: "พนักงาน (Staff)",
       label: env.VITE_QUICK_LOGIN_STAFF_LABEL,
       subtitle: env.VITE_QUICK_LOGIN_STAFF_SUBTITLE,
@@ -63,6 +66,7 @@ export function buildQuickLoginAccounts(env: QuickLoginEnv): QuickLoginAccount[]
     }
 
     return [{
+      role: accountDefinition.role,
       label: normalizeValue(accountDefinition.label) ?? accountDefinition.defaultLabel,
       subtitle: normalizeValue(accountDefinition.subtitle) ?? email,
       email,

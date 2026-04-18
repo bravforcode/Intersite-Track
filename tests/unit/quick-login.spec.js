@@ -13,6 +13,7 @@ test("buildQuickLoginAccounts only returns accounts with both email and password
   });
 
   assert.deepEqual(accounts, [{
+    role: "admin",
     label: "แอดมิน (Admin)",
     subtitle: "admin@taskam.local",
     email: "admin@taskam.local",
@@ -23,16 +24,16 @@ test("buildQuickLoginAccounts only returns accounts with both email and password
 test("buildQuickLoginAccounts falls back to default role logins when env credentials are absent", () => {
   assert.deepEqual(buildQuickLoginAccounts({}), [
     {
+      role: "admin",
       label: "แอดมิน (Admin)",
       subtitle: "admin@taskam.local",
       email: "admin@taskam.local",
-      password: "admin123",
     },
     {
+      role: "staff",
       label: "พนักงาน (Staff)",
       subtitle: "somchai@taskam.local",
       email: "somchai@taskam.local",
-      password: "staff123",
     },
   ]);
 });

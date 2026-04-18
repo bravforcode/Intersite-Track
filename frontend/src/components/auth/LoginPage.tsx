@@ -114,8 +114,19 @@ export function LoginPage({ onLogin }: LoginPageProps) {
 
   const handleQuickLogin = async (account: (typeof quickLoginAccounts)[number]) => {
     setEmail(account.email);
-    setPassword(account.password);
-    await submitLogin(account.email, account.password);
+    setPassword("");
+    setLoading(true);
+    setError("");
+    setInfo("");
+
+    try {
+      const user = await authService.quickRoleLogin(account.role);
+      onLogin(user);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "ยังไม่สามารถเข้าสู่ระบบบทบาทนี้ได้");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
