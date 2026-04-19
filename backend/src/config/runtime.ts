@@ -15,6 +15,7 @@ function normalizedEnv(name: string): string {
 }
 
 export function isProductionRuntime(): boolean {
+  if ((process.env.E2E_MOCK ?? "0") === "1") return false;
   return process.env.NODE_ENV === "production" || Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
 }
 

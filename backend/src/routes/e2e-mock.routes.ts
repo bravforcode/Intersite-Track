@@ -48,9 +48,9 @@ const baseUsers: MockUser[] = [
   {
     id: "u-staff",
     username: "staff",
-    email: getEnv("E2E_STAFF_EMAIL", "somchai@taskam.local").toLowerCase(),
+    email: getEnv("E2E_STAFF_EMAIL", "staff@taskam.local").toLowerCase(),
     password: getEnv("E2E_STAFF_PASSWORD", "staff123"),
-    first_name: getEnv("E2E_STAFF_NAME", "สมชาย"),
+    first_name: getEnv("E2E_STAFF_NAME", "พนักงานทดสอบ"),
     last_name: "",
     role: "staff",
     department_id: null,
@@ -261,4 +261,3 @@ router.get("/notifications/:userId/unread-count", requireAuth, (req, res) => {
 });
 
 export default router;
-

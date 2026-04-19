@@ -1,279 +1,131 @@
-/**
- * INTEGRATION TEST SUITE
- * Tests API integration with external services and databases
- */
+import { test, expect, testUtils, TEST_ACCOUNTS } from "./fixtures";
 
-import { test, expect } from "@playwright/test";
+test.describe("API Integration Contracts", () => {
+  test("health and CSRF endpoints are available before authentication", async ({ page }) => {
+    await page.goto("/");
+    await testUtils.waitForBackendReady(page);
 
-const API_URL = process.env.BASE_URL || "http://localhost:3694";
+    const csrf = await page.evaluate(async () => {
+      const response = await fetch("/api/csrf-token", { credentials: "include" });
+      const body = await response.json();
+      return {
+        status: response.status,
+        token: response.headers.get("X-CSRF-Token") ?? body.csrfToken,
+      };
+    });
 
-test.describe("API Integration Tests", () => {
-  // Setup: Get auth token
-  let authToken: string;
-
-  test.beforeAll(async () => {
-    // Initialize auth token if needed
+    expect(csrf.status).toBe(200);
+    expect(csrf.token).toBeTruthy();
   });
 
-  test.describe("User Management API", () => {
-    test("should create user via API", async ({ request }) => {
-      const response = await request.post(`${API_URL}/api/auth/register`, {
-        data: {
-          email: `user_${Date.now()}@test.com`,
-          password: "Password123!@#",
-          name: "Test User",
-        },
-      });
-
-      expect(response.status()).toBe(201 || 200);
-      expect(response.ok()).toBeTruthy();
+  test("authenticated profile returns the active user's role and email", async ({ authenticatedPage: page }) => {
+    const profile = await testUtils.apiRequest<{
+      email: string;
+      role: string;
+    }>(page, {
+      url: "/api/auth/profile",
+      method: "POST",
+      body: {},
     });
 
-    test("should get user profile via API", async ({ request }) => {
-      const response = await request.get(`${API_URL}/api/user/profile`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      });
-
-      expect(response.status()).toBe(200 || 401); // 401 if not authenticated
-    });
-
-    test("should update user profile", async ({ request }) => {
-      const response = await request.put(`${API_URL}/api/user/profile`, {
-        data: {
-          name: "Updated Name",
-          email: "newemail@test.com",
-        },
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      });
-
-      expect([200, 400, 401]).toContain(response.status());
-    });
+    expect(profile.status).toBe(200);
+    expect((profile.payload as { email: string }).email).toBe(TEST_ACCOUNTS.ADMIN.email);
+    expect((profile.payload as { role: string }).role).toBe("admin");
   });
 
-  test.describe("Data CRUD Operations", () => {
-    let createdItemId: string;
+  test("admin user directory includes full user data while staff directory is protected", async ({ page }) => {
+    await testUtils.login(page, TEST_ACCOUNTS.ADMIN.email, TEST_ACCOUNTS.ADMIN.password);
 
-    test("should create item", async ({ request }) => {
-      const response = await request.post(`${API_URL}/api/data`, {
-        data: {
-          title: "Test Item",
-          description: "Test Description",
-        },
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      });
-
-      if (response.ok()) {
-        const data = await response.json();
-        createdItemId = data.id;
-      }
-
-      expect([200, 201, 400, 401]).toContain(response.status());
+    const adminUsers = await testUtils.apiRequest<Array<Record<string, unknown>>>(page, {
+      url: "/api/users",
     });
+    expect(adminUsers.status).toBe(200);
+    expect(Array.isArray(adminUsers.payload)).toBeTruthy();
+    expect((adminUsers.payload as Array<Record<string, unknown>>).some(user => user.email)).toBeTruthy();
 
-    test("should read item", async ({ request }) => {
-      if (!createdItemId) return;
+    await testUtils.logout(page);
+    await testUtils.login(page, TEST_ACCOUNTS.STAFF.email, TEST_ACCOUNTS.STAFF.password);
 
-      const response = await request.get(`${API_URL}/api/data/${createdItemId}`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      });
-
-      expect([200, 404, 401]).toContain(response.status());
-    });
-
-    test("should update item", async ({ request }) => {
-      if (!createdItemId) return;
-
-      const response = await request.put(`${API_URL}/api/data/${createdItemId}`, {
-        data: {
-          title: "Updated Title",
-        },
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      });
-
-      expect([200, 400, 404, 401]).toContain(response.status());
-    });
-
-    test("should delete item", async ({ request }) => {
-      if (!createdItemId) return;
-
-      const response = await request.delete(`${API_URL}/api/data/${createdItemId}`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      });
-
-      expect([200, 204, 404, 401]).toContain(response.status());
-    });
+    const staffUsers = await testUtils.apiRequest(page, { url: "/api/users" });
+    expect(staffUsers.status).toBe(403);
   });
 
-  test.describe("File Operations", () => {
-    test("should upload file", async ({ request }) => {
-      const fileContent = Buffer.from("Test file content");
-
-      const response = await request.post(`${API_URL}/api/files/upload`, {
-        multipart: {
-          file: {
-            name: "test.txt",
-            mimeType: "text/plain",
-            buffer: fileContent,
-          },
-        },
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      });
-
-      expect([200, 201, 400, 401]).toContain(response.status());
+  test("staff task-context users do not expose email or LINE identifiers", async ({ staffPage: page }) => {
+    const taskContext = await testUtils.apiRequest<Array<Record<string, unknown>>>(page, {
+      url: "/api/users/task-context",
     });
 
-    test("should list files", async ({ request }) => {
-      const response = await request.get(`${API_URL}/api/files`, {
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
-      });
-
-      expect([200, 401]).toContain(response.status());
-      if (response.ok()) {
-        const data = await response.json();
-        expect(Array.isArray(data) || data.files).toBeTruthy();
-      }
-    });
+    expect(taskContext.status).toBe(200);
+    for (const user of taskContext.payload as Array<Record<string, unknown>>) {
+      expect("email" in user).toBeFalsy();
+      expect("line_user_id" in user).toBeFalsy();
+    }
   });
 
-  test.describe("Error Handling", () => {
-    test("should handle 400 Bad Request", async ({ request }) => {
-      const response = await request.post(`${API_URL}/api/auth/login`, {
-        data: {
-          // Missing required fields
-        },
-      });
+  test("admin can create and read a task through the workspace API", async ({ authenticatedPage: page }) => {
+    const created = await testUtils.createTask(page);
 
-      expect(response.status()).toBe(400);
+    const task = await testUtils.apiRequest<Record<string, unknown>>(page, {
+      url: `/api/tasks/${created.taskId}`,
+    });
+    const workspace = await testUtils.apiRequest<{ data: Array<{ id: string }> }>(page, {
+      url: "/api/tasks/workspace",
     });
 
-    test("should handle 401 Unauthorized", async ({ request }) => {
-      const response = await request.get(`${API_URL}/api/user/profile`, {
-        headers: {
-          Authorization: "Bearer invalid_token",
-        },
-      });
-
-      expect(response.status()).toBe(401);
-    });
-
-    test("should handle 404 Not Found", async ({ request }) => {
-      const response = await request.get(
-        `${API_URL}/api/data/nonexistent-id`
-      );
-
-      expect(response.status()).toBe(404);
-    });
-
-    test("should handle 500 Server Error gracefully", async ({ request }) => {
-      const response = await request.get(`${API_URL}/api/health`);
-
-      // Should not return 500 for health endpoint
-      expect(response.status()).not.toBe(500);
-    });
+    expect(task.status).toBe(200);
+    expect((task.payload as { id: string }).id).toBe(created.taskId);
+    expect(workspace.status).toBe(200);
+    expect((workspace.payload as { data: Array<{ id: string }> }).data.some(t => t.id === created.taskId)).toBeTruthy();
   });
 
-  test.describe("Pagination", () => {
-    test("should handle pagination parameters", async ({ request }) => {
-      const response = await request.get(
-        `${API_URL}/api/data?page=1&limit=10`,
-        {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-          },
-        }
-      );
-
-      expect([200, 400, 401]).toContain(response.status());
+  test("staff cannot create admin-only task records", async ({ staffPage: page }) => {
+    const response = await testUtils.apiRequest(page, {
+      url: "/api/tasks",
+      method: "POST",
+      body: {
+        title: `Staff Forbidden Task ${Date.now()}`,
+        description: "This should be rejected by role policy",
+        priority: "medium",
+      },
     });
 
-    test("should return correct page size", async ({ request }) => {
-      const response = await request.get(
-        `${API_URL}/api/data?limit=5`,
-        {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-          },
-        }
-      );
-
-      if (response.ok()) {
-        const data = await response.json();
-        if (Array.isArray(data)) {
-          expect(data.length).toBeLessThanOrEqual(5);
-        }
-      }
-    });
+    expect(response.status).toBe(403);
   });
 
-  test.describe("Filtering", () => {
-    test("should filter by search query", async ({ request }) => {
-      const response = await request.get(
-        `${API_URL}/api/data?search=test`,
-        {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-          },
-        }
-      );
+  test("task upload and secure download return the uploaded file content type", async ({ authenticatedPage: page }) => {
+    const created = await testUtils.createTask(page);
+    const upload = await testUtils.uploadAttachment(page, created.taskId);
+    const downloadPath =
+      (upload.payload as { download_url?: string }).download_url ??
+      (upload.body as { download_url?: string }).download_url;
 
-      expect([200, 400, 401]).toContain(response.status());
+    expect(upload.status).toBe(201);
+    expect(downloadPath).toBeTruthy();
+
+    const download = await testUtils.apiRequest<string>(page, {
+      url: downloadPath!,
     });
 
-    test("should filter by status", async ({ request }) => {
-      const response = await request.get(
-        `${API_URL}/api/data?status=active`,
-        {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-          },
-        }
-      );
-
-      expect([200, 400, 401]).toContain(response.status());
-    });
+    expect(download.status).toBe(200);
+    expect(download.contentType).toContain("image/png");
   });
 
-  test.describe("Sorting", () => {
-    test("should sort by date", async ({ request }) => {
-      const response = await request.get(
-        `${API_URL}/api/data?sort=date&order=desc`,
-        {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-          },
-        }
-      );
+  test("unauthenticated protected resources return 401", async ({ page }) => {
+    await page.goto("/");
 
-      expect([200, 400, 401]).toContain(response.status());
+    const response = await page.evaluate(async () => {
+      const result = await fetch("/api/tasks/workspace", { credentials: "include" });
+      return result.status;
     });
 
-    test("should sort by name", async ({ request }) => {
-      const response = await request.get(
-        `${API_URL}/api/data?sort=name&order=asc`,
-        {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-          },
-        }
-      );
+    expect(response).toBe(401);
+  });
 
-      expect([200, 400, 401]).toContain(response.status());
+  test("missing task records return 404 for authenticated users", async ({ authenticatedPage: page }) => {
+    const response = await testUtils.apiRequest(page, {
+      url: "/api/tasks/nonexistent-id",
     });
+
+    expect(response.status).toBe(404);
   });
 });

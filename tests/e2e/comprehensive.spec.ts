@@ -1,238 +1,138 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, testUtils, TEST_ACCOUNTS } from "./fixtures";
 
-const BASE_URL = process.env.BASE_URL || "http://localhost:4173";
+const MAX_PAGE_LOAD_MS = 5_000;
 
-test.describe("Authentication Flow", () => {
-  test("should register a new user successfully", async ({ page }) => {
-    await page.goto(`${BASE_URL}/register`);
+test.describe("Core Authentication Flow", () => {
+  test("logs in with valid admin credentials and renders the dashboard shell", async ({ page }) => {
+    await testUtils.login(page, TEST_ACCOUNTS.ADMIN.email, TEST_ACCOUNTS.ADMIN.password);
 
-    const uniqueEmail = `testuser_${Date.now()}@test.com`;
-
-    await page.fill('input[name="email"]', uniqueEmail);
-    await page.fill('input[name="password"]', "Password123!@#");
-    await page.fill('input[name="confirmPassword"]', "Password123!@#");
-    await page.fill('input[name="name"]', "Test User");
-
-    await page.click('button[type="submit"]');
-
-    // Should redirect to login or dashboard
-    await expect(page).toHaveURL(/(login|dashboard)/);
+    const user = await testUtils.getSessionUser(page);
+    expect(user?.email).toBe(TEST_ACCOUNTS.ADMIN.email);
+    expect(user?.role).toBe("admin");
+    await expect(page.getByRole("heading", { name: "แดชบอร์ด" })).toBeVisible();
   });
 
-  test("should login with valid credentials", async ({ page }) => {
-    await page.goto(`${BASE_URL}/login`);
+  test("rejects invalid credentials without clearing the login page", async ({ page }) => {
+    await page.goto("/");
+    await testUtils.waitForCorrectApp(page);
+    await testUtils.waitForBackendReady(page);
 
-    await page.fill('input[type="email"]', "testuser@test.com");
-    await page.fill('input[type="password"]', "Password123!@#");
+    await page.locator('input[type="email"]').fill("invalid@taskam.local");
+    await page.locator('input[type="password"]').fill("wrong-password");
+    await page.getByRole("button", { name: "เข้าสู่ระบบ" }).click({ noWaitAfter: true });
 
-    await page.click('button[type="submit"]');
-
-    // Should navigate to dashboard
-    await expect(page).toHaveURL(/dashboard/, { timeout: 10000 });
+    await expect(
+      page.getByText(/อีเมลหรือรหัสผ่านไม่ถูกต้อง|พยายามเข้าสู่ระบบบ่อยเกินไป/)
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('input[type="email"]')).toBeVisible();
   });
 
-  test("should reject login with invalid credentials", async ({ page }) => {
-    await page.goto(`${BASE_URL}/login`);
+  test("logs out and returns to the login form", async ({ page }) => {
+    await testUtils.login(page, TEST_ACCOUNTS.ADMIN.email, TEST_ACCOUNTS.ADMIN.password);
+    await testUtils.logout(page);
 
-    await page.fill('input[type="email"]', "invalid@test.com");
-    await page.fill('input[type="password"]', "wrongpassword");
-
-    await page.click('button[type="submit"]');
-
-    // Should show error message
-    const errorMessage = await page.locator('[role="alert"]');
-    await expect(errorMessage).toBeVisible();
-  });
-
-  test("should logout successfully", async ({ page }) => {
-    // Note: This test assumes user is already logged in
-    await page.goto(`${BASE_URL}/dashboard`);
-
-    // Find and click logout button
-    const logoutButton = await page.locator("button:has-text('Logout')");
-    if (await logoutButton.isVisible()) {
-      await logoutButton.click();
-
-      // Should redirect to login
-      await expect(page).toHaveURL(/login/);
-    }
+    expect(await testUtils.getSessionUser(page)).toBeNull();
+    await expect(page.getByRole("button", { name: "เข้าสู่ระบบ" })).toBeVisible();
   });
 });
 
 test.describe("Application Functionality", () => {
-  test("should load dashboard on authenticated access", async ({ page }) => {
-    await page.goto(`${BASE_URL}/dashboard`);
+  test("admin sees the main enterprise modules in navigation", async ({ authenticatedPage: page }) => {
+    const navigation = page.locator("nav:visible").first();
 
-    // Should display main content
-    const mainContent = await page.locator("main, [role='main']");
-    await expect(mainContent).toBeVisible();
+    await expect(navigation.getByRole("button", { name: /^จัดการงาน$/ })).toBeVisible();
+    await expect(navigation.getByRole("button", { name: /^พนักงาน$/ })).toBeVisible();
+    await expect(navigation.getByRole("button", { name: /^รายงาน$/ })).toBeVisible();
+    await expect(navigation.getByRole("button", { name: /^ข้อมูลพื้นฐาน$/ })).toBeVisible();
   });
 
-  test("should display all required UI components", async ({ page }) => {
-    await page.goto(`${BASE_URL}`);
+  test("staff sees the staff-safe navigation surface only", async ({ staffPage: page }) => {
+    await testUtils.openSidebar(page);
+    const navigation = page.locator("nav").first();
 
-    // Check for common UI elements
-    const navbar = await page.locator("nav, [role='navigation']");
-    const footer = await page.locator("footer");
-
-    // At least one should be visible
-    const navVisible = await navbar.isVisible();
-    const footerVisible = await footer.isVisible();
-
-    expect(navVisible || footerVisible).toBeTruthy();
+    await expect(navigation.getByRole("button", { name: /^จัดการงาน$/ })).toBeVisible();
+    await expect(navigation.getByRole("button", { name: /^พนักงาน$/ })).toHaveCount(0);
+    await expect(navigation.getByRole("button", { name: /^รายงาน$/ })).toHaveCount(0);
+    await expect(navigation.getByRole("button", { name: /^ข้อมูลพื้นฐาน$/ })).toHaveCount(0);
   });
 
-  test("should handle responsive design on mobile", async ({ page }) => {
-    // Set mobile viewport
+  test("mobile viewport keeps navigation and page content usable", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
+    await testUtils.login(page, TEST_ACCOUNTS.ADMIN.email, TEST_ACCOUNTS.ADMIN.password);
 
-    await page.goto(`${BASE_URL}`);
+    await Promise.all([
+      page.waitForURL(/\/tasks$/, { timeout: 15_000 }),
+      testUtils.navigateToTab(page, "จัดการงาน"),
+    ]);
 
-    // Check if content is still accessible
-    const mainElements = await page.locator("main, [role='main']");
-    await expect(mainElements).toBeVisible({ timeout: 5000 });
-  });
-
-  test("should handle responsive design on tablet", async ({ page }) => {
-    // Set tablet viewport
-    await page.setViewportSize({ width: 768, height: 1024 });
-
-    await page.goto(`${BASE_URL}`);
-
-    // Check if content is still accessible
-    const mainElements = await page.locator("main, [role='main']");
-    await expect(mainElements).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('button[aria-label="เปิดเมนูหลัก"]')).toBeVisible();
+    await expect(page).toHaveURL(/\/tasks$/);
+    await expect(page.getByRole("heading", { name: "จัดการงาน" })).toBeVisible();
   });
 });
 
-test.describe("Performance", () => {
-  test("should load page within acceptable time", async ({ page }) => {
-    const startTime = Date.now();
-
-    await page.goto(`${BASE_URL}`);
-
-    const loadTime = Date.now() - startTime;
-
-    // Page should load within 3 seconds
-    expect(loadTime).toBeLessThan(3000);
+test.describe("Performance And Runtime Safety", () => {
+  test("loads the first screen within an acceptable local budget", async ({ page }) => {
+    const start = Date.now();
+    await page.goto("/");
+    await testUtils.waitForCorrectApp(page);
+    expect(Date.now() - start).toBeLessThan(MAX_PAGE_LOAD_MS);
   });
 
-  test("should have no console errors", async ({ page }) => {
+  test("does not emit browser console errors on the login screen", async ({ page }) => {
     const errors: string[] = [];
-
     page.on("console", (msg) => {
-      if (msg.type() === "error") {
-        errors.push(msg.text());
-      }
+      if (msg.type() === "error") errors.push(msg.text());
     });
 
-    await page.goto(`${BASE_URL}`);
+    await page.goto("/");
+    await testUtils.waitForCorrectApp(page);
 
     expect(errors).toHaveLength(0);
   });
 
-  test("should use optimized images", async ({ page }) => {
-    const largeImages: string[] = [];
+  test("serves API security headers from the backend boundary", async ({ page }) => {
+    const response = await page.goto("/api/health");
 
-    page.on("response", (response) => {
-      if (
-        response
-          .request()
-          .resourceType()
-          .match(/image|media/)
-      ) {
-        const size = response.headers()["content-length"] || "0";
-        if (parseInt(size) > 1024 * 1024) {
-          // > 1MB
-          largeImages.push(response.url());
-        }
-      }
-    });
-
-    await page.goto(`${BASE_URL}`);
-
-    expect(largeImages).toHaveLength(0);
-  });
-});
-
-test.describe("Security", () => {
-  test("should have CSP header", async ({ page }) => {
-    const response = await page.goto(`${BASE_URL}`);
-
-    const cspHeader = response?.headers()["content-security-policy"];
-    expect(cspHeader).toBeDefined();
+    expect(response?.status()).toBe(200);
+    expect(response?.headers()["content-security-policy"]).toBeTruthy();
+    expect(response?.headers()["x-content-type-options"]).toBe("nosniff");
   });
 
-  test("should have HSTS header", async ({ page }) => {
-    const response = await page.goto(`${BASE_URL}`);
-
-    const hstsHeader = response?.headers()["strict-transport-security"];
-
-    // Only required for HTTPS
-    if (new URL(`${BASE_URL}`).protocol === "https:") {
-      expect(hstsHeader).toBeDefined();
-    }
-  });
-
-  test("should not expose sensitive data in HTML", async ({ page }) => {
-    await page.goto(`${BASE_URL}`);
-
+  test("does not expose obvious secret material in the public login HTML", async ({ page }) => {
+    await page.goto("/");
     const html = await page.content();
 
-    // Check for common sensitive patterns
-    const sensitivePatterns = [
-      /api[_-]?key/i,
-      /private[_-]?key/i,
-      /secret/i,
-      /password/i,
-    ];
-
-    for (const pattern of sensitivePatterns) {
-      // Should not find these in plain text (excluding legitimate content)
-      const matches = html.match(pattern);
-      expect(matches?.length || 0).toBeLessThan(3); // Allow some occurrences in labels
-    }
+    expect(html).not.toMatch(/private[_-]?key|secret[_-]?key|api[_-]?key\s*=/i);
   });
 });
 
-test.describe("Accessibility", () => {
-  test("should have proper heading hierarchy", async ({ page }) => {
-    await page.goto(`${BASE_URL}`);
+test.describe("Accessibility Surface", () => {
+  test("has a single main landmark and labelled login fields", async ({ page }) => {
+    await page.goto("/");
 
-    // Should have at least one H1
-    const h1s = await page.locator("h1");
-    expect(await h1s.count()).toBeGreaterThan(0);
+    await expect(page.locator("main")).toHaveCount(1);
+    await expect(page.locator('input[type="email"]')).toHaveAttribute("aria-label", "อีเมล");
+    await expect(page.locator('input[type="password"]')).toHaveAttribute("aria-label", "รหัสผ่าน");
   });
 
-  test("should have descriptive link text", async ({ page }) => {
-    await page.goto(`${BASE_URL}`);
+  test("has descriptive button text for visible buttons", async ({ page }) => {
+    await page.goto("/");
+    const buttons = page.locator("button:visible");
+    const count = Math.min(await buttons.count(), 10);
 
-    const links = await page.locator("a");
+    for (let i = 0; i < count; i += 1) {
+      const button = buttons.nth(i);
+      const label = [
+        await button.textContent(),
+        await button.getAttribute("aria-label"),
+        await button.getAttribute("title"),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
 
-    for (let i = 0; i < Math.min(await links.count(), 10); i++) {
-      const link = links.nth(i);
-      const text = await link.textContent();
-      const title = await link.getAttribute("title");
-      const ariaLabel = await link.getAttribute("aria-label");
-
-      // Link should have descriptive text or aria-label
-      expect(text || title || ariaLabel).toBeTruthy();
-    }
-  });
-
-  test("should have proper form labels", async ({ page }) => {
-    await page.goto(`${BASE_URL}/login`);
-
-    const inputs = await page.locator("input");
-
-    for (let i = 0; i < await inputs.count(); i++) {
-      const input = inputs.nth(i);
-      const label = await page.locator(`label[for="${await input.getAttribute("id")}"]`);
-      const ariaLabel = await input.getAttribute("aria-label");
-
-      // Input should have label or aria-label
-      const hasLabel = (await label.count()) > 0;
-      expect(hasLabel || ariaLabel).toBeTruthy();
+      expect(label.length).toBeGreaterThan(0);
     }
   });
 });

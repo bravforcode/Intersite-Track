@@ -5,6 +5,8 @@ node_modules/
 build/
 dist/
 coverage/
+.coverage
+backend/.coverage
 
 # Environment variables (NEVER commit these)
 .env
@@ -22,6 +24,10 @@ Thumbs.db
 # Logs
 *.log
 logs/
+backend.log
+frontend.log
+devserver.log
+smoke.log
 
 # Database files (using Firestore, not SQLite)
 *.db
@@ -47,6 +53,11 @@ tmp/
 .playwright-cli/
 test-results/
 playwright-report/
+
+# Generated audit/test output
+output/
+.audit/
+.playwright-audit-results/
 
 # Generated performance reports
 k6-report.html

@@ -164,7 +164,8 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   };
 
   return (
-    <div
+    <main
+      id="main-content"
       className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
       style={{
         background:
@@ -304,6 +305,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     <Mail className={iconClass} />
                     <input
                       type="email"
+                      aria-label="อีเมล"
                       autoComplete="email"
                       className={inputClass}
                       placeholder="กรอกอีเมลของคุณ"
@@ -329,6 +331,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     <Lock className={iconClass} />
                     <input
                       type={showPassword ? "text" : "password"}
+                      aria-label="รหัสผ่าน"
                       autoComplete="current-password"
                       className={inputClassPr}
                       placeholder="กรอกรหัสผ่าน"
@@ -418,6 +421,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     <Mail className={iconClass} />
                     <input
                       type="email"
+                      aria-label="อีเมล"
                       autoComplete="email"
                       className={inputClass}
                       placeholder="กรอกอีเมลของคุณ"
@@ -434,6 +438,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     <Lock className={iconClass} />
                     <input
                       type={showPassword ? "text" : "password"}
+                      aria-label="รหัสผ่านใหม่"
                       autoComplete="new-password"
                       className={inputClassPr}
                       placeholder="อย่างน้อย 8 ตัวอักษร"
@@ -463,6 +468,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     <Lock className={iconClass} />
                     <input
                       type={showConfirmPassword ? "text" : "password"}
+                      aria-label="ยืนยันรหัสผ่าน"
                       autoComplete="new-password"
                       className={inputClassPr}
                       placeholder="กรอกรหัสผ่านอีกครั้ง"
@@ -550,6 +556,7 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                   <Mail className={iconClass} />
                   <input
                     type="email"
+                    aria-label="อีเมลสำหรับรีเซ็ตรหัสผ่าน"
                     autoComplete="email"
                     className={inputClass}
                     placeholder="กรอกอีเมลของคุณ"
@@ -631,6 +638,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           )}
         </AnimatePresence>
       </motion.div>
-    </div>
+    </main>
   );
 }

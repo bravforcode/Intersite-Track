@@ -23,12 +23,12 @@ This guide explains how to set up the test accounts (Admin and Staff) for local 
 - Password: `admin123`
 - Click **"Create user"**
 
-**Create Staff Account:**
-- Email: `somchai@taskam.local`
+**Optional Staff Account for local testing:**
+- Email: `staff@taskam.local`
 - Password: `staff123`
 - Click **"Create user"**
 
-✅ You should now see both users listed in the Authentication → Users tab
+✅ You should now see the admin user, and the optional staff user if you created one.
 
 ### Step 2: Create Firestore Profiles
 
@@ -52,11 +52,16 @@ Run the setup script to create Firestore profiles:
 npx tsx scripts/setup-users.ts
 ```
 
+To also seed the optional staff profile, set staff seed variables for that command:
+
+```bash
+SEED_STAFF_EMAIL=staff@taskam.local npx tsx scripts/setup-users.ts
+```
+
 Expected output:
 
 ```
 ✅ Created profile for admin@taskam.local (uid: xxxxxxxx)
-✅ Created profile for somchai@taskam.local (uid: xxxxxxxx)
 
 Done! Now restart the server and try logging in.
 ```
@@ -79,7 +84,7 @@ The app will start on [http://localhost:5173](http://localhost:5173)
    - `VITE_ENABLE_QUICK_LOGIN=true`
    - `VITE_QUICK_LOGIN_ADMIN_EMAIL=admin@taskam.local`
    - `VITE_QUICK_LOGIN_ADMIN_PASSWORD=admin123`
-   - `VITE_QUICK_LOGIN_STAFF_EMAIL=somchai@taskam.local`
+   - `VITE_QUICK_LOGIN_STAFF_EMAIL=staff@taskam.local`
    - `VITE_QUICK_LOGIN_STAFF_PASSWORD=staff123`
 2. Click **"แอดมิน (Admin)"** or **"พนักงาน (Staff)"** quick login button
 2. OR manually enter:

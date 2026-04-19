@@ -29,12 +29,6 @@ const defaultQuickLoginAccounts: QuickLoginAccount[] = [
     subtitle: "admin@taskam.local",
     email: "admin@taskam.local",
   },
-  {
-    role: "staff",
-    label: "พนักงาน (Staff)",
-    subtitle: "somchai@taskam.local",
-    email: "somchai@taskam.local",
-  },
 ];
 
 export function buildQuickLoginAccounts(env: QuickLoginEnv): QuickLoginAccount[] {

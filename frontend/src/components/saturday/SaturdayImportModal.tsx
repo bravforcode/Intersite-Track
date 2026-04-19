@@ -96,7 +96,7 @@ export function SaturdayImportModal({ users, onImported, onClose }: SaturdayImpo
             <p className="text-sm text-slate-600 mb-3">
               อัปโหลดไฟล์ CSV รูปแบบ:<br />
               <code className="text-xs bg-slate-100 px-2 py-1 rounded">วันที่,ชื่อ1,ชื่อ2,...</code><br />
-              <code className="text-xs bg-slate-100 px-2 py-1 rounded">2026-04-12,สมชาย,สมหญิง</code>
+              <code className="text-xs bg-slate-100 px-2 py-1 rounded">2026-04-12,พนักงาน A,พนักงาน B</code>
             </p>
             <input type="file" accept=".csv,.txt" onChange={handleFile} className="text-sm" />
           </div>

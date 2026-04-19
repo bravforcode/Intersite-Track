@@ -79,7 +79,7 @@ app.use(helmet(helmetConfig));
 // Security: CORS
 const allowedOrigins = process.env.ALLOWED_ORIGIN
   ? process.env.ALLOWED_ORIGIN.split(",").map((o) => o.trim())
-  : [`http://localhost:${PORT}`, "http://localhost:5180"];
+  : [`http://localhost:${PORT}`, "http://localhost:5173"];
 
 app.use(
   cors({
@@ -152,7 +152,7 @@ app.get("/", (_req, res) => {
     status: "ok", 
     message: "Intersite Track API running",
     environment: process.env.NODE_ENV,
-    frontend: isDev ? (process.env.ALLOWED_ORIGIN?.split(",")[0] || "http://localhost:5180") : undefined
+    frontend: isDev ? (process.env.ALLOWED_ORIGIN?.split(",")[0] || "http://localhost:5173") : undefined
   });
 });
 
@@ -162,10 +162,23 @@ app.get("/api/live", (_req, res) => {
 
 app.get("/api/health", async (_req, res) => {
   const firestore = await probeDatabaseHealth();
+  const { checkRedisHealth } = await import("./src/config/redis.js");
+  const redis = await checkRedisHealth();
+  
   const ok = firestore.status === "ok";
-  res.status(ok ? 200 : 503).json({
-    status: ok ? "ok" : "degraded",
-    dependencies: { firestore },
+  const degraded = firestore.status === "degraded" || redis.status === "degraded";
+  
+  res.status(ok ? 200 : degraded ? 200 : 503).json({
+    status: ok ? "ok" : degraded ? "degraded" : "unavailable",
+    dependencies: { 
+      firestore,
+      redis: {
+        status: redis.status,
+        message: redis.message,
+        latencyMs: redis.latencyMs,
+      },
+    },
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -250,8 +263,17 @@ function shutdown(signal: NodeJS.Signals) {
   }, 5_000);
   forceExit.unref();
 
-  server.close((error) => {
+  server.close(async (error) => {
     clearTimeout(forceExit);
+    
+    // Close Redis connection gracefully
+    try {
+      const { closeRedisConnection } = await import("./src/config/redis.js");
+      await closeRedisConnection();
+    } catch (err) {
+      console.error("Error closing Redis connection:", err);
+    }
+    
     if (error) {
       console.error(error);
       process.exit(1);

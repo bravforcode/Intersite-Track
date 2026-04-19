@@ -12,14 +12,12 @@ import { resolveAuthBootstrapDecision } from "./utils/authBootstrap";
 
 import { LoginPage } from "./components/auth/LoginPage";
 import { MainLayout } from "./components/layout/MainLayout";
+import { TasksPage } from "./components/tasks/TasksPage";
 
 import type { Notification, Task, User } from "./types";
 
 const DashboardPage = lazy(() =>
   import("./components/dashboard/DashboardPage").then((module) => ({ default: module.DashboardPage }))
-);
-const TasksPage = lazy(() =>
-  import("./components/tasks/TasksPage").then((module) => ({ default: module.TasksPage }))
 );
 const TaskFormModal = lazy(() =>
   import("./components/tasks/TaskFormModal").then((module) => ({ default: module.TaskFormModal }))

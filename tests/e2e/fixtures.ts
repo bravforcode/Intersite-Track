@@ -19,6 +19,10 @@ function getEnv(name: string, fallback: string): string {
   return process.env[name]?.trim() || fallback;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 export const TEST_ACCOUNTS: Record<"ADMIN" | "STAFF", Account> = {
   ADMIN: {
     email: getEnv("E2E_ADMIN_EMAIL", "admin@taskam.local"),
@@ -27,10 +31,10 @@ export const TEST_ACCOUNTS: Record<"ADMIN" | "STAFF", Account> = {
     displayName: getEnv("E2E_ADMIN_NAME", "แอดมิน"),
   },
   STAFF: {
-    email: getEnv("E2E_STAFF_EMAIL", "somchai@taskam.local"),
+    email: getEnv("E2E_STAFF_EMAIL", "staff@taskam.local"),
     password: getEnv("E2E_STAFF_PASSWORD", "staff123"),
     role: "staff",
-    displayName: getEnv("E2E_STAFF_NAME", "สมชาย"),
+    displayName: getEnv("E2E_STAFF_NAME", "พนักงานทดสอบ"),
   },
 };
 
@@ -86,27 +90,56 @@ export const testUtils = {
 
   async waitForBackendReady(page: Page, timeoutMs: number = 60_000) {
     const deadline = Date.now() + timeoutMs;
+    let attempt = 0;
+    let lastError: string | null = null;
 
     while (Date.now() < deadline) {
       try {
-        const ready = await page.evaluate(async () => {
+        const result = await page.evaluate(async () => {
           try {
             const response = await fetch("/api/health");
-            return response.ok;
-          } catch {
-            return false;
+            const data = await response.json().catch(() => ({}));
+            return {
+              ok: response.ok,
+              status: response.status,
+              data,
+            };
+          } catch (err) {
+            return {
+              ok: false,
+              status: 0,
+              error: err instanceof Error ? err.message : String(err),
+            };
           }
         });
 
-        if (ready) return;
-      } catch {
-        // Ignore transient page/context errors while the dev server boots.
+        if (result.ok) {
+          // Backend is ready
+          return;
+        }
+
+        // Store last error for debugging
+        lastError = result.error || `HTTP ${result.status}`;
+
+        // Check if it's a degraded state (Firestore issues)
+        if (result.status === 200 && result.data?.status === "degraded") {
+          console.warn("[E2E] Backend is degraded but operational:", result.data);
+          // Continue waiting for full health
+        }
+      } catch (err) {
+        // Ignore transient page/context errors while the dev server boots
+        lastError = err instanceof Error ? err.message : String(err);
       }
 
-      await page.waitForTimeout(1_000);
+      // Exponential backoff: 1s, 2s, 4s, 8s, max 10s
+      const backoffMs = Math.min(1000 * Math.pow(2, attempt), 10000);
+      await page.waitForTimeout(backoffMs);
+      attempt++;
     }
 
-    throw new Error("Backend API did not become ready in time");
+    throw new Error(
+      `Backend API did not become ready in time (${timeoutMs}ms). Last error: ${lastError || "unknown"}`
+    );
   },
 
   async hasSessionUser(page: Page) {
@@ -160,11 +193,14 @@ export const testUtils = {
   },
 
   async navigateToTab(page: Page, label: string) {
-    let tabButton = page.getByRole("button", { name: label }).first();
+    const exactLabel = new RegExp(`^${escapeRegExp(label)}$`);
+    let navigation = page.locator("nav:visible").first();
+    let tabButton = navigation.getByRole("button", { name: exactLabel }).first();
 
     if (!(await tabButton.isVisible().catch(() => false))) {
       await this.openSidebar(page);
-      tabButton = page.locator("button:visible").filter({ hasText: label }).first();
+      navigation = page.locator("nav:visible").last();
+      tabButton = navigation.getByRole("button", { name: exactLabel }).first();
     }
 
     await expect(tabButton).toBeVisible({ timeout: 10_000 });
@@ -175,6 +211,15 @@ export const testUtils = {
     await page.goto("/");
     await this.waitForCorrectApp(page);
     await this.waitForBackendReady(page);
+    await page
+      .waitForFunction(
+        () =>
+          !!sessionStorage.getItem("user") ||
+          !!document.querySelector('input[type="email"]') ||
+          !!document.querySelector('[aria-label^="เปิดการแจ้งเตือน"]'),
+        { timeout: 30_000 }
+      )
+      .catch(() => null);
 
     if (await this.isLoggedIn(page)) return;
 

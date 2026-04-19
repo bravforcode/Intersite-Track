@@ -1,38 +1,6 @@
 import rateLimit from "express-rate-limit";
-import { createClient, RedisClientType } from "redis";
-import { isProductionRuntime } from "../config/runtime.js";
-
-// Redis client for distributed rate limiting
-let redisClient: RedisClientType | null = null;
-
-// Initialize Redis client if available
-async function getRedisClient(): Promise<RedisClientType | null> {
-  if (redisClient) return redisClient;
-
-  // Redis is preferred for distributed rate limiting, but the app can still
-  // operate with express-rate-limit's in-memory store when Redis is unavailable.
-  if (!process.env.REDIS_URL) {
-    if (isProductionRuntime()) {
-      console.warn("[RATE_LIMIT] REDIS_URL not configured in production; using per-instance in-memory limits");
-      return null;
-    }
-    console.log("[RATE_LIMIT] Redis not configured, using in-memory store");
-    return null;
-  }
-
-  try {
-    redisClient = createClient({ url: process.env.REDIS_URL });
-    await redisClient.connect();
-    console.log("[RATE_LIMIT] Connected to Redis for distributed rate limiting");
-    return redisClient;
-  } catch (err) {
-    console.error("[RATE_LIMIT] Failed to connect to Redis:", err);
-    console.warn(
-      `[RATE_LIMIT] Falling back to in-memory store${isProductionRuntime() ? " in production" : ""} (distributed limits unavailable)`
-    );
-    return null;
-  }
-}
+import { RedisClientType } from "redis";
+import { getRedisClient } from "../config/redis.js";
 
 
 /**

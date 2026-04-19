@@ -20,6 +20,24 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 const auth = admin.auth();
 
+function optionalStaffSeed() {
+  const email = process.env.SEED_STAFF_EMAIL?.trim().toLowerCase();
+  if (!email) return [];
+
+  return [
+    {
+      email,
+      first_name: process.env.SEED_STAFF_FIRST_NAME?.trim() || "พนักงานทดสอบ",
+      last_name: process.env.SEED_STAFF_LAST_NAME?.trim() || "",
+      username: process.env.SEED_STAFF_USERNAME?.trim() || "staff",
+      role: "staff",
+      position: process.env.SEED_STAFF_POSITION?.trim() || "พนักงาน",
+      department_id: null,
+      line_user_id: null,
+    },
+  ];
+}
+
 async function setupUsers() {
   const users = [
     {
@@ -32,16 +50,7 @@ async function setupUsers() {
       department_id: null,
       line_user_id: null,
     },
-    {
-      email: "somchai@taskam.local",
-      first_name: "สมชาย",
-      last_name: "ใจดี",
-      username: "somchai",
-      role: "staff",
-      position: "พนักงาน",
-      department_id: null,
-      line_user_id: null,
-    },
+    ...optionalStaffSeed(),
   ];
 
   for (const userData of users) {

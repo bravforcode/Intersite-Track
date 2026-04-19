@@ -9,7 +9,7 @@ test("buildQuickLoginAccounts only returns accounts with both email and password
   const accounts = buildQuickLoginAccounts({
     VITE_QUICK_LOGIN_ADMIN_EMAIL: "ADMIN@TASKAM.LOCAL ",
     VITE_QUICK_LOGIN_ADMIN_PASSWORD: "admin123",
-    VITE_QUICK_LOGIN_STAFF_EMAIL: "somchai@taskam.local",
+    VITE_QUICK_LOGIN_STAFF_EMAIL: "staff@taskam.local",
   });
 
   assert.deepEqual(accounts, [{
@@ -28,12 +28,6 @@ test("buildQuickLoginAccounts falls back to default role logins when env credent
       label: "แอดมิน (Admin)",
       subtitle: "admin@taskam.local",
       email: "admin@taskam.local",
-    },
-    {
-      role: "staff",
-      label: "พนักงาน (Staff)",
-      subtitle: "somchai@taskam.local",
-      email: "somchai@taskam.local",
     },
   ]);
 });

@@ -200,7 +200,8 @@ export function createApiClient({
         clearTimeoutFn(timeout);
       });
 
-      if (res.status === 401) {
+      const isLoginAttempt = endpoint === "/api/auth/mock-login" || endpoint === "/api/auth/quick-login";
+      if (res.status === 401 && !isLoginAttempt) {
         clearApiAuthState();
         await authClient.auth.signOut({ scope: "local" }).catch(() => {});
         storage.removeItem("user");

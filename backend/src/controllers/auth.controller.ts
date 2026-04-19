@@ -19,8 +19,13 @@ function envValue(name: string, fallback: string): string {
 }
 
 function isQuickRoleLoginEnabled(): boolean {
-  const raw = (process.env.DISABLE_QUICK_ROLE_LOGIN ?? "false").trim().toLowerCase();
-  return !["true", "1", "on", "yes"].includes(raw);
+  const disabled = (process.env.DISABLE_QUICK_ROLE_LOGIN ?? "false").trim().toLowerCase();
+  if (["true", "1", "on", "yes"].includes(disabled)) return false;
+
+  const enabled = (process.env.ENABLE_QUICK_ROLE_LOGIN ?? process.env.VITE_ENABLE_QUICK_LOGIN ?? "false")
+    .trim()
+    .toLowerCase();
+  return ["true", "1", "on", "yes"].includes(enabled);
 }
 
 function getQuickLoginAccount(role: QuickLoginRole): QuickLoginAccount {
@@ -36,12 +41,12 @@ function getQuickLoginAccount(role: QuickLoginRole): QuickLoginAccount {
     };
   }
 
-  const email = envValue("VITE_QUICK_LOGIN_STAFF_EMAIL", "somchai@taskam.local").toLowerCase();
+  const email = envValue("VITE_QUICK_LOGIN_STAFF_EMAIL", "staff@taskam.local").toLowerCase();
   return {
     role,
     email,
     username: envValue("VITE_QUICK_LOGIN_STAFF_USERNAME", "staff"),
-    firstName: envValue("VITE_QUICK_LOGIN_STAFF_NAME", "สมชาย"),
+    firstName: envValue("VITE_QUICK_LOGIN_STAFF_NAME", "พนักงานทดสอบ"),
     lastName: "",
     position: "Staff",
   };

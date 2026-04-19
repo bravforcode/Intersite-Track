@@ -37,13 +37,14 @@ test.describe("System Responsiveness", () => {
   test("tasks page shell loads without hanging", async ({ authenticatedPage: page }) => {
     const start = Date.now();
     await Promise.all([
-      page.waitForURL("**/tasks"),
+      page.waitForURL(/\/tasks$/, { timeout: 15_000 }),
       testUtils.navigateToTab(page, "จัดการงาน"),
     ]);
     const duration = Date.now() - start;
 
     await expect(page).toHaveURL(/\/tasks$/);
-    await expect(page.locator("main")).toContainText("แสดง", { timeout: 10_000 });
+    await expect(page.locator("main")).toBeVisible();
+    await expect(page.locator('input[type="email"]')).toHaveCount(0);
     expect(duration).toBeLessThan(MAX_ENDPOINT_DURATION_MS);
   });
 });

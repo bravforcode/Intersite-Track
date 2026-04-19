@@ -149,7 +149,7 @@ export const authService = {
       const credentials =
         role === "admin"
           ? { email: "admin@taskam.local", password: "admin123" }
-          : { email: "somchai@taskam.local", password: "staff123" };
+          : { email: "staff@taskam.local", password: "staff123" };
       let response: { token: string; user: User };
       try {
         response = await api.post("/api/auth/mock-login", credentials);

@@ -126,6 +126,23 @@ test("production runtime does not hard-require REDIS_URL", async () => {
   }
 });
 
+test("e2e mock runtime does not trigger production validation", async () => {
+  const runtimeUrl = pathToFileURL(join(repoRoot, "backend/src/config/runtime.ts")).href;
+  const runtime = await import(`${runtimeUrl}?case=e2e-${Date.now()}`);
+  const previous = { ...process.env };
+
+  try {
+    process.env.E2E_MOCK = "1";
+    process.env.NODE_ENV = "production";
+    process.env.ALLOWED_ORIGIN = "http://localhost:5173,http://localhost:3694";
+
+    assert.equal(runtime.isProductionRuntime(), false);
+    assert.doesNotThrow(() => runtime.validateProductionRuntimeEnv());
+  } finally {
+    process.env = previous;
+  }
+});
+
 test("csrf protection is stateless and HMAC signed", () => {
   const source = readRepoFile("backend/src/middleware/csrf.middleware.ts");
   const serverSource = readRepoFile("backend/server.ts");

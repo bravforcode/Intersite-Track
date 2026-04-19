@@ -22,7 +22,8 @@
     "test": "npm run test:root && npm run test --workspaces --if-present",
     "clean": "rimraf dist frontend/dist backend/dist",
     "deploy:production": "bash scripts/deploy-production.sh",
-    "test:e2e": "E2E_MOCK=1 npx playwright test",
+    "test:e2e": "cross-env E2E_MOCK=1 playwright test",
+    "test:e2e:real": "cross-env E2E_MOCK=0 playwright test",
     "test:cross-browser": "bash scripts/cross-browser-test.sh",
     "test:functional": "bash scripts/functional-test.sh",
     "test:performance:smoke": "bash scripts/performance-test-runner.sh smoke",
@@ -33,7 +34,14 @@
     "test:performance:all": "bash scripts/performance-test-runner.sh all",
     "verify:deployment": "bash scripts/deploy-verify.sh",
     "orchestrate:deployment": "bash scripts/complete-deployment-orchestrator.sh",
-    "audit:security": "npm audit --production"
+    "audit:security": "npm audit --production",
+    "health:check": "bash scripts/health-check.sh",
+    "health:check:prod": "bash scripts/health-check.sh https://your-domain.com",
+    "firestore:indexes": "bash scripts/deploy-firestore-indexes.sh",
+    "firestore:quota": "bash scripts/check-firestore-quota.sh",
+    "secrets:rotate": "echo 'See SECURITY-INCIDENT-RESPONSE.md for secret rotation procedure'",
+    "precommit": "npm run lint && npm run test",
+    "prepare": "node -e \"try { require('husky').install() } catch (e) {}\""
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",

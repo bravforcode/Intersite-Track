@@ -31,18 +31,45 @@ if (missingFirebaseEnv.length > 0 && !isE2eMock) {
 
 type MockAuthListener = (user: AuthLike["currentUser"]) => void;
 
-let mockCurrentUser: AuthLike["currentUser"] = null;
+const mockAuthStorageKey = "e2eMockAuthUser";
+
+function buildMockAuthUser(params: { email: string | null; token: string } | null): AuthLike["currentUser"] {
+  return params === null
+    ? null
+    : {
+        email: params.email,
+        getIdToken: async () => params.token,
+      };
+}
+
+function readStoredMockAuthUser(): AuthLike["currentUser"] {
+  if (!isE2eMock || typeof sessionStorage === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(mockAuthStorageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { email: string | null; token: string };
+    if (!parsed.token) return null;
+    return buildMockAuthUser(parsed);
+  } catch {
+    return null;
+  }
+}
+
+let mockCurrentUser: AuthLike["currentUser"] = readStoredMockAuthUser();
 const mockAuthListeners = new Set<MockAuthListener>();
 
 export function setMockAuthUser(params: { email: string | null; token: string } | null): void {
   if (!isE2eMock) return;
-  mockCurrentUser =
-    params === null
-      ? null
-      : {
-          email: params.email,
-          getIdToken: async () => params.token,
-        };
+  mockCurrentUser = buildMockAuthUser(params);
+  try {
+    if (params === null) {
+      sessionStorage.removeItem(mockAuthStorageKey);
+    } else {
+      sessionStorage.setItem(mockAuthStorageKey, JSON.stringify(params));
+    }
+  } catch {
+    // Storage can be unavailable in unusual browser contexts.
+  }
   for (const listener of mockAuthListeners) {
     listener(mockCurrentUser);
   }

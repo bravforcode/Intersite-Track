@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 // ═════════════════════════════════════════════════════════════════════════════
 // ACCESSIBILITY TESTING
@@ -95,16 +95,29 @@ test.describe("WCAG 2.1 Level AA Compliance", () => {
     // Should have multiple focusable elements
     expect(await focusableElements.count()).toBeGreaterThan(0);
 
-    // Test Tab navigation
+    // Test Tab navigation by comparing the actual focused element signature, not
+    // only tagName. Two adjacent buttons are still different focus targets.
     let previousElement: string | null = null;
     for (let i = 0; i < Math.min(5, await focusableElements.count()); i++) {
       await page.keyboard.press("Tab");
 
       const activeElement = await page.evaluate(() => {
-        const el = document.activeElement;
-        return el?.tagName || "";
+        const el = document.activeElement as HTMLElement | null;
+        if (!el) return "";
+        const focusables = Array.from(
+          document.querySelectorAll<HTMLElement>(
+            "button, a[href], input, select, textarea, [tabindex]"
+          )
+        );
+        const label =
+          el.innerText?.trim() ||
+          el.getAttribute("aria-label") ||
+          el.getAttribute("placeholder") ||
+          "";
+        return `${focusables.indexOf(el)}:${el.tagName}:${label}`;
       });
 
+      expect(activeElement).toBeTruthy();
       expect(activeElement).not.toBe(previousElement);
       previousElement = activeElement;
     }
@@ -144,11 +157,11 @@ test.describe("WCAG 2.1 Level AA Compliance", () => {
     const h1Index = await page.locator("h1").evaluate(
       (el) => Array.from(el.parentElement!.children).indexOf(el)
     );
-    const h2Index = await page.locator("h2").first().evaluate(
-      (el) => Array.from(el.parentElement!.children).indexOf(el)
-    );
+    const h2Index = await h2s.count() > 0
+      ? page.locator("h2").first().evaluate((el) => Array.from(el.parentElement!.children).indexOf(el))
+      : -1;
 
-    if (h1Index !== -1 && h2Index !== -1) {
+    if (h2Index !== -1) {
       expect(h2Index).toBeGreaterThan(h1Index);
     }
   });
@@ -197,6 +210,7 @@ test.describe("SEO Compliance", () => {
   });
 
   test("should have proper Open Graph tags", async ({ page }) => {
+    await page.goto("/");
     const html = await page.content();
 
     expect(html).toMatch(/<meta\s+property="og:title"/i);
@@ -205,24 +219,28 @@ test.describe("SEO Compliance", () => {
   });
 
   test("should have robots meta tag", async ({ page }) => {
+    await page.goto("/");
     const html = await page.content();
 
     expect(html).toMatch(/<meta\s+name="robots"/i);
   });
 
   test("should have sitemap reference", async ({ page }) => {
+    await page.goto("/");
     const html = await page.content();
 
     expect(html).toMatch(/<link\s+rel="sitemap"/i);
   });
 
   test("should have canonical URL", async ({ page }) => {
+    await page.goto("/");
     const html = await page.content();
 
     expect(html).toMatch(/<link\s+rel="canonical"/i);
   });
 
   test("should have structured data (Schema.org)", async ({ page }) => {
+    await page.goto("/");
     const html = await page.content();
 
     expect(html).toMatch(/<script\s+type="application\/ld\+json"/i);

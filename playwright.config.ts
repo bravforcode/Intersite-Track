@@ -7,9 +7,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const useE2eMock = (process.env.E2E_MOCK ?? (process.env.CI ? "1" : "0")) === "1";
-const frontendPort = Number(
-  process.env.PLAYWRIGHT_FRONTEND_PORT ?? (useE2eMock ? "5174" : "4173")
-);
+const frontendPort = Number(process.env.PLAYWRIGHT_FRONTEND_PORT ?? (useE2eMock ? "5174" : "5173"));
 const backendPort = Number(process.env.PLAYWRIGHT_BACKEND_PORT ?? "3694");
 
 export default defineConfig({
@@ -33,8 +31,8 @@ export default defineConfig({
   webServer: [
     {
       command: useE2eMock
-        ? `npx cross-env E2E_MOCK=1 NODE_ENV=test PORT=${backendPort} npm run start --workspace=backend`
-        : `npx cross-env PORT=${backendPort} npm run start --workspace=backend`,
+        ? `npx cross-env E2E_MOCK=1 PORT=${backendPort} npm run start:test --workspace=backend`
+        : `npx cross-env PORT=${backendPort} npm run start:test --workspace=backend`,
       url: `http://localhost:${backendPort}/api/live`,
       name: "Backend",
       reuseExistingServer: !process.env.CI && !useE2eMock && backendPort === 3694,
@@ -42,11 +40,11 @@ export default defineConfig({
     },
     {
       command: useE2eMock
-        ? `npx cross-env VITE_E2E_MOCK=1 npm run dev --workspace=frontend -- --port ${frontendPort} --strictPort`
+        ? `npx cross-env VITE_E2E_MOCK=1 VITE_ENABLE_QUICK_LOGIN=false npm run dev --workspace=frontend -- --port ${frontendPort} --strictPort`
         : `npm run dev --workspace=frontend -- --port ${frontendPort} --strictPort`,
       url: `http://localhost:${frontendPort}`,
       name: "Frontend",
-      reuseExistingServer: !process.env.CI && !useE2eMock && frontendPort === 4173,
+      reuseExistingServer: !process.env.CI && !useE2eMock && frontendPort === 5173,
       timeout: 120 * 1000,
     },
   ],
