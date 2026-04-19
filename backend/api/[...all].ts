@@ -32,8 +32,14 @@ try {
 const app = express();
 const isDev = !isProductionRuntime();
 
+const vercelUrl = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "";
+const defaultOrigins = [
+  "https://intersite-track-eight.vercel.app",
+  vercelUrl
+].filter(Boolean).join(",");
+
 // Ensure parity between runtime logic and CORS
-const allowedOrigins = (process.env.ALLOWED_ORIGIN || "https://intersite-track-eight.vercel.app")
+const allowedOrigins = (process.env.ALLOWED_ORIGIN || defaultOrigins)
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
@@ -52,6 +58,7 @@ const helmetConfig = {
         isDev ? "http://localhost:5173" : undefined,
         isDev ? "http://localhost:3694" : undefined,
         "https://*.googleapis.com",
+        ...allowedOrigins,
         "https://securetoken.googleapis.com",
         "https://identitytoolkit.googleapis.com",
         "https://firestore.googleapis.com",

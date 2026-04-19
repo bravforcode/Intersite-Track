@@ -7,7 +7,6 @@ const REQUIRED_PRODUCTION_ENV = [
   "ENCRYPTION_KEY",
   "BLOB_READ_WRITE_TOKEN",
   "CRON_SECRET",
-  "ALLOWED_ORIGIN",
 ] as const;
 
 function normalizedEnv(name: string): string {
