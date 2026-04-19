@@ -16,8 +16,14 @@ if (!admin.apps.length) {
       throw new Error("Missing Firebase credentials in production environment.");
     }
   }
+  let privateKey = privateKeyRaw || "";
 
-  const privateKey = privateKeyRaw?.replace(/\\n/g, '\n') || "";
+  // Support both raw multiline keys and Base64 encoded keys (Vercel)
+  if (privateKey.startsWith("LS0t")) {
+    privateKey = Buffer.from(privateKey, "base64").toString("utf-8");
+  } else {
+    privateKey = privateKey.replace(/\\n/g, '\n');
+  }
 
   try {
     admin.initializeApp({
