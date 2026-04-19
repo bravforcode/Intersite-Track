@@ -62,7 +62,8 @@ export function buildQuickLoginAccounts(env: QuickLoginEnv): QuickLoginAccount[]
     const password = normalizeValue(accountDefinition.password);
 
     if (!email || !password) {
-      return [];
+      const defaultAccount = defaultQuickLoginAccounts.find(a => a.role === accountDefinition.role);
+      return defaultAccount ? [defaultAccount] : [];
     }
 
     return [{
@@ -74,7 +75,7 @@ export function buildQuickLoginAccounts(env: QuickLoginEnv): QuickLoginAccount[]
     }];
   });
 
-  return configuredAccounts.length > 0 ? configuredAccounts : defaultQuickLoginAccounts;
+  return configuredAccounts;
 }
 
 export function isQuickLoginEnabled(params: {

@@ -188,7 +188,10 @@ export async function optionalAuth(req: Request, res: Response, next: NextFuncti
   try {
     const result = await resolveUserFromToken(token);
     if (!result.ok) {
-      sendAuthError(res, result);
+      // Token is invalid/expired. For optional routes, treat as anonymous 
+      // instead of hard-rejecting, which can break public endpoints like CSRF.
+      process.stderr.write(`[AUTH] optional auth token invalid, proceeding anonymously: ${result.error}\n`);
+      next();
       return;
     }
     req.user = result.user;
