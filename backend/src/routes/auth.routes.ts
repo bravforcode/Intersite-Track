@@ -20,9 +20,10 @@ router.post("/auth/signup", signupRateLimiter, validate(SignUpSchema), signup);
 // configured role account and returns a Firebase custom token.
 router.post("/auth/quick-login", loginRateLimiter, quickLogin);
 
-// Called by frontend after Firebase sign-in to get app profile (role, dept, etc.)
-// Rate-limited to prevent brute-force profile enumeration
-router.post("/auth/profile", loginRateLimiter, requireAuth, getProfile);
+// Called by frontend after Firebase sign-in to get app profile (role, dept, etc.).
+// requireAuth already prevents profile enumeration; the global API limiter is
+// enough here and avoids locking users out during auth bootstrap retries.
+router.post("/auth/profile", requireAuth, getProfile);
 
 // Authenticated user operations — own profile management
 // Validates: optional fields with length limits

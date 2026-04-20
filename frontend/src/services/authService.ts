@@ -57,6 +57,18 @@ async function warmupBackend(): Promise<void> {
   }
 }
 
+async function clearRejectedAuthSession(): Promise<void> {
+  clearApiAuthState();
+  sessionStorage.removeItem("user");
+
+  if (isE2eMock) {
+    setMockAuthUser(null);
+    return;
+  }
+
+  await firebaseSignOut(firebaseAuth).catch(() => {});
+}
+
 async function fetchAndStoreProfile(firebaseUser: FirebaseUser, profileLoadErrorMessage: string): Promise<User> {
   try {
     const token = await firebaseUser.getIdToken();
@@ -65,7 +77,7 @@ async function fetchAndStoreProfile(firebaseUser: FirebaseUser, profileLoadError
     sessionStorage.setItem("user", JSON.stringify(profile));
     return profile;
   } catch (error) {
-    clearApiAuthState();
+    await clearRejectedAuthSession();
     throw new Error(getAuthErrorMessage(error, profileLoadErrorMessage));
   }
 }
@@ -195,11 +207,11 @@ export const authService = {
     }
   },
 
-  async getToken(): Promise<string | null> {
+  async getToken(forceRefresh = false): Promise<string | null> {
     const currentUser = auth.currentUser;
     if (!currentUser) return null;
     try {
-      return await currentUser.getIdToken();
+      return await currentUser.getIdToken(forceRefresh);
     } catch {
       return null;
     }
@@ -242,7 +254,7 @@ export const authService = {
         sessionStorage.setItem("user", JSON.stringify(profile));
         return profile;
       } catch (error) {
-        clearApiAuthState();
+        await clearRejectedAuthSession();
         throw new Error(getAuthErrorMessage(error, "ยังไม่สามารถโหลดข้อมูลผู้ใช้ได้ กรุณาลองใหม่อีกครั้ง"));
       }
     }

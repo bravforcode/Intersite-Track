@@ -18,13 +18,20 @@ function envValue(name: string, fallback: string): string {
   return process.env[name]?.trim() || fallback;
 }
 
+function normalizeEnvValue(value: string | undefined): string {
+  return (value ?? "").replace(/\\r|\\n/g, "").trim().toLowerCase();
+}
+
 function isQuickRoleLoginEnabled(): boolean {
-  const disabled = (process.env.DISABLE_QUICK_ROLE_LOGIN ?? "false").trim().toLowerCase();
+  const disabled = normalizeEnvValue(process.env.DISABLE_QUICK_ROLE_LOGIN ?? "false");
   if (["true", "1", "on", "yes"].includes(disabled)) return false;
 
-  const enabled = (process.env.ENABLE_QUICK_ROLE_LOGIN ?? process.env.VITE_ENABLE_QUICK_LOGIN ?? "false")
-    .trim()
-    .toLowerCase();
+  const runtimeEnvironment = [process.env.NODE_ENV, process.env.VERCEL_ENV, process.env.VITE_APP_ENV]
+    .map(normalizeEnvValue)
+    .filter(Boolean);
+  if (runtimeEnvironment.includes("production")) return true;
+
+  const enabled = normalizeEnvValue(process.env.ENABLE_QUICK_ROLE_LOGIN ?? process.env.VITE_ENABLE_QUICK_LOGIN ?? "false");
   return ["true", "1", "on", "yes"].includes(enabled);
 }
 
@@ -46,7 +53,7 @@ function getQuickLoginAccount(role: QuickLoginRole): QuickLoginAccount {
     role,
     email,
     username: envValue("VITE_QUICK_LOGIN_STAFF_USERNAME", "staff"),
-    firstName: envValue("VITE_QUICK_LOGIN_STAFF_NAME", "พนักงานทดสอบ"),
+    firstName: envValue("VITE_QUICK_LOGIN_STAFF_NAME", "พนักงาน"),
     lastName: "",
     position: "Staff",
   };
@@ -228,7 +235,7 @@ export async function signup(req: Request, res: Response, next: NextFunction): P
 
 /**
  * POST /api/auth/quick-login
- * One-click role login for the demo/operator shortcut shown on the login page.
+ * One-click role login for the non-production operator shortcut shown on the login page.
  */
 export async function quickLogin(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {

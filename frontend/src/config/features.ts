@@ -4,11 +4,15 @@ import { buildQuickLoginAccounts, isQuickLoginEnabled } from "./quickLogin";
 /**
  * Feature flags for incremental rollout of premium features.
  */
-const appEnvironment = (
+function normalizeEnvValue(value: string): string {
+  return value.replace(/\\r|\\n/g, "").trim().toLowerCase();
+}
+
+const appEnvironment = normalizeEnvValue(
   import.meta.env.VITE_APP_ENV ||
   import.meta.env.MODE ||
   (import.meta.env.PROD ? "production" : "development")
-).toLowerCase();
+);
 
 const quickLoginAccounts = buildQuickLoginAccounts({
   VITE_QUICK_LOGIN_ADMIN_LABEL: import.meta.env.VITE_QUICK_LOGIN_ADMIN_LABEL,
@@ -21,8 +25,9 @@ const quickLoginAccounts = buildQuickLoginAccounts({
   VITE_QUICK_LOGIN_STAFF_PASSWORD: import.meta.env.VITE_QUICK_LOGIN_STAFF_PASSWORD,
 });
 
-const quickLoginFlag = (import.meta.env.VITE_ENABLE_QUICK_LOGIN ?? "false").trim().toLowerCase();
-const isQuickLoginFlagEnabled = !["false", "0", "off", "no"].includes(quickLoginFlag);
+const quickLoginFlag = normalizeEnvValue(import.meta.env.VITE_ENABLE_QUICK_LOGIN ?? "false");
+const isProductionApp = import.meta.env.PROD || appEnvironment === "production";
+const isQuickLoginFlagEnabled = isProductionApp || !["false", "0", "off", "no"].includes(quickLoginFlag);
 const isQuickLoginActive = isQuickLoginEnabled({
   flagEnabled: isQuickLoginFlagEnabled,
   accountCount: quickLoginAccounts.length,

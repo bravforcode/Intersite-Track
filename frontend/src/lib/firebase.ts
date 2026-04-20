@@ -4,7 +4,7 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 type AuthLike = {
-  currentUser: { getIdToken: () => Promise<string>; email?: string | null } | null;
+  currentUser: { getIdToken: (forceRefresh?: boolean) => Promise<string>; email?: string | null } | null;
   onAuthStateChanged: (listener: (user: AuthLike["currentUser"]) => void) => () => void;
 };
 
@@ -12,13 +12,21 @@ type FirestoreLike = ReturnType<typeof getFirestore> | null;
 
 const isE2eMock = (import.meta.env.VITE_E2E_MOCK as string | undefined) === "1";
 
+function readFirebaseEnv(name: string): string {
+  return String(import.meta.env[name] ?? "")
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .replace(/\\n/g, "")
+    .trim();
+}
+
 const firebaseConfig = {
-  apiKey: "AIzaSyBi9vhI6iTs_27m0We9jtt94Bo96RzO_dI",
-  authDomain: "intersite-track02.firebaseapp.com",
-  projectId: "intersite-track02",
-  storageBucket: "intersite-track02.firebasestorage.app",
-  messagingSenderId: "764386641110",
-  appId: "1:764386641110:web:216ddcf775a436208af577"
+  apiKey: readFirebaseEnv("VITE_FIREBASE_API_KEY"),
+  authDomain: readFirebaseEnv("VITE_FIREBASE_AUTH_DOMAIN"),
+  projectId: readFirebaseEnv("VITE_FIREBASE_PROJECT_ID"),
+  storageBucket: readFirebaseEnv("VITE_FIREBASE_STORAGE_BUCKET"),
+  messagingSenderId: readFirebaseEnv("VITE_FIREBASE_MESSAGING_SENDER_ID"),
+  appId: readFirebaseEnv("VITE_FIREBASE_APP_ID")
 };
 
 const missingFirebaseEnv = Object.entries(firebaseConfig)

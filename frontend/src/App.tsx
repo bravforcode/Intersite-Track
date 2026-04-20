@@ -201,7 +201,7 @@ export default function App() {
   }, [user]);
 
   // ─── SSE real-time push ────────────────────────────────────────────────────
-  const { latestNotification } = useNotificationSSE();
+  const { latestNotification } = useNotificationSSE(Boolean(user));
   useEffect(() => {
     if (!latestNotification || latestNotification.event !== "notification") return;
     void refreshNotifications();

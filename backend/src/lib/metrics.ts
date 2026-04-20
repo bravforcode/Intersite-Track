@@ -86,7 +86,7 @@ class MetricsCollector {
     }
   }
 
-  private sendToDataDog(metrics: Metric[]): void {
+  private sendToDataDog(_metrics: Metric[]): void {
     // DataDog integration would go here
     // Example: POST to https://api.datadoghq.com/api/v1/series
   }

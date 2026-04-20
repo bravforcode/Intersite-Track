@@ -12,6 +12,8 @@ backend/.coverage
 .env
 .env.*
 !.env.example
+.env-secrets.txt
+.temp-cron-secret.txt
 
 # Vercel
 .vercel

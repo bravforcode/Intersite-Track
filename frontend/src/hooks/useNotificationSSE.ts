@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { authService } from "../services/authService";
+import { isNotificationSSEAuthFailureStatus } from "../utils/notificationSse";
 
 export interface NotificationPayload {
   event: string;
@@ -10,11 +11,16 @@ export interface NotificationPayload {
   created_at?: string;
 }
 
-export function useNotificationSSE() {
+export function useNotificationSSE(enabled = true) {
   const [latestNotification, setLatestNotification] = useState<NotificationPayload | null>(null);
   const [token, setToken] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!enabled) {
+      setToken(null);
+      return;
+    }
+
     const unsubscribe = authService.onAuthStateChanged((firebaseUser) => {
       if (!firebaseUser) {
         setToken(null);
@@ -28,15 +34,16 @@ export function useNotificationSSE() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!enabled || !token) return;
 
     const apiUrl = import.meta.env.VITE_API_URL || "/api";
     const controller = new AbortController();
     let cancelled = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+    let activeToken = token;
 
     const handleEvent = (payload: string) => {
       if (!payload.trim()) return;
@@ -56,10 +63,25 @@ export function useNotificationSSE() {
         try {
           const response = await fetch(`${apiUrl}/notifications/stream`, {
             headers: {
-              Authorization: `Bearer ${token}`,
+              Authorization: `Bearer ${activeToken}`,
             },
             signal: controller.signal,
           });
+
+          if (isNotificationSSEAuthFailureStatus(response.status)) {
+            const refreshedToken = await authService.getToken(true);
+            if (!cancelled && refreshedToken && refreshedToken !== activeToken) {
+              activeToken = refreshedToken;
+              setToken(refreshedToken);
+              continue;
+            }
+
+            setToken(null);
+            if (import.meta.env.DEV) {
+              console.warn("[SSE] Authentication failed; realtime notifications paused.");
+            }
+            break;
+          }
 
           if (!response.ok || !response.body) {
             throw new Error(`SSE connection failed with status ${response.status}`);
@@ -115,7 +137,7 @@ export function useNotificationSSE() {
       controller.abort();
       if (reconnectTimer) clearTimeout(reconnectTimer);
     };
-  }, [token]);
+  }, [enabled, token]);
 
   return { latestNotification };
 }
